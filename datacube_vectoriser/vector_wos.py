@@ -7,9 +7,9 @@
 # 3. vectorise
 # 4. simplify shapes to remove complixity
 # 5. join both data types back together as one Geopandas Geodataframe (container for sapely objects with projection imformation)
-# 6. export an a single sapefile with attributes intact.
+# 6. export an a single shapefile with attributes intact.
 
-# From https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
+# Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
 
 import geopandas as gp
 import pandas as pd
@@ -31,39 +31,36 @@ wos_dataset = wos_dataset.rename({1: 'wo'})
 
 """begin doing thing to the tiff"""
 
+
+def method_name(wos_dataset):
+    global dataset_crs, dialated_water, dialated_not_analysed
+    dataset_crs = from_epsg((wos_dataset.crs)[11:])
+    # Defining the three 'classes':
+    # a) Water: where water is observed. Bit value 128
+    # b) unspoken 'dry'. this is not vectorised and is left and transparent layer. bit values: 1 (no data) 2 (Contiguity)
+    # c) Not_analysed: every masking applied to the data except terrain shadow. bit values: composed of Everyting else,
+    # 1 create binary arrays for two classes of interest
+    water_vals = (wos_dataset.wo == 128)  # water only has 128 water observations
+    # here we used reversed logic to turn all pixles that should be 'not analysed' to a value of 3. is is easier to list the 4 classes that are passed to the unlabled 'dry' class
+    not_analysed = wos_dataset.wo.where(((wos_dataset.wo == 0) | (wos_dataset.wo == 1) | (wos_dataset.wo == 8)
+                                         | (wos_dataset.wo == 2) | (wos_dataset.wo == 128) | (wos_dataset.wo == 130) | (
+                                                 wos_dataset.wo == 142)), 3)
+    not_analysed = not_analysed.where((not_analysed == 3), 0)  # now keep the 3 values and make everyting else 0
+    # 2 conduct binary errosion and closing to remove single pixles
+    erroded_water = xr.DataArray(ndimage.binary_erosion(water_vals, iterations=2).astype(water_vals.dtype),
+                                 coords=water_vals.coords)
+    erroded_not_analysed = xr.DataArray(ndimage.binary_erosion(not_analysed, iterations=2).astype(not_analysed.dtype),
+                                        coords=not_analysed.coords)
+    # dialating cloud 3 times after erroding 2, to create small overlap and iliminate gaps in data
+    dialated_water = xr.DataArray(ndimage.binary_dilation(erroded_water, iterations=3).astype(water_vals.dtype),
+                                  coords=water_vals.coords)
+    dialated_not_analysed = xr.DataArray(
+        ndimage.binary_dilation(erroded_not_analysed, iterations=(3)).astype(not_analysed.dtype),
+        coords=not_analysed.coords)
+
+
 # grab crs from input tiff
-dataset_crs = from_epsg((wos_dataset.crs)[11:])
-
-# Defining the three 'classes':
-# a) Water: where water is observed. Bit value 128
-# b) unspoken 'dry'. this is not vectorised and is left and transparent layer. bit values: 1 (no data) 2 (Contiguity)
-# c) Not_analysed: every masking applied to the data except terrain shadow. bit values: composed of Everyting else,
-
-
-# 1 create binary arrays for two classes of interest
-
-water_vals = (wos_dataset.wo == 128)  # water only has 128 water observations
-
-# here we used reversed logic to turn all pixles that should be 'not analysed' to a value of 3. is is easier to list the 4 classes that are passed to the unlabled 'dry' class
-not_analysed = wos_dataset.wo.where(((wos_dataset.wo == 0) | (wos_dataset.wo == 1) | (wos_dataset.wo == 8)
-                                     | (wos_dataset.wo == 2) | (wos_dataset.wo == 128) | (wos_dataset.wo == 130) | (
-                                             wos_dataset.wo == 142)), 3)
-not_analysed = not_analysed.where((not_analysed == 3), 0)  # now keep the 3 values and make everyting else 0
-
-# 2 conduct binary errosion and closing to remove single pixles
-
-
-erroded_water = xr.DataArray(ndimage.binary_erosion(water_vals, iterations=2).astype(water_vals.dtype),
-                             coords=water_vals.coords)
-erroded_not_analysed = xr.DataArray(ndimage.binary_erosion(not_analysed, iterations=2).astype(not_analysed.dtype),
-                                    coords=not_analysed.coords)
-
-# dialating cloud 3 times after erroding 2, to create small overlap and iliminate gaps in data
-dialated_water = xr.DataArray(ndimage.binary_dilation(erroded_water, iterations=3).astype(water_vals.dtype),
-                              coords=water_vals.coords)
-dialated_not_analysed = xr.DataArray(
-    ndimage.binary_dilation(erroded_not_analysed, iterations=(3)).astype(not_analysed.dtype),
-    coords=not_analysed.coords)
+method_name(wos_dataset)
 
 
 # vectorise the arrays

@@ -1,40 +1,43 @@
+import json
+
 import boto3
 import click
+import datacube
+import xarray
+from datacube.testutils.io import native_load
 
 
 @click.command()
-@click.argument('queue_name')
-def process_sqs_messages(queue_name):
+@click.argument('queue_url')
+def process_sqs_messages(queue_url):
+    process_messages(queue_url)
 
 
-    pass
-
-def receive_messages(queue_url):
-    sqs = boto3.client('sqs')
+def process_messages(queue_url):
+    sqs = boto3.resource('sqs')
 
     # Receive message from SQS queue
-    response = sqs.receive_message(
-        QueueUrl=queue_url,
-        AttributeNames=[
-            'SentTimestamp'
-        ],
-        MaxNumberOfMessages=1,
-        MessageAttributeNames=[
-            'All'
-        ],
-        VisibilityTimeout=0,
-        WaitTimeSeconds=0
-    )
+    messages = sqs.receive_messages(QueueUrl=queue_url, MaxNumberOfMessages=1, )
 
-    message = response['Messages'][0]
-    receipt_handle = message['ReceiptHandle']
+    while len(messages) > 0:
+        for message in messages:
+            body = json.loads(message.body)
 
-    # Delete received message from queue
-    sqs.delete_message(
-        QueueUrl=queue_url,
-        ReceiptHandle=receipt_handle
-    )
-    print('Received and deleted message: %s' % message)
+            # Process
+
+            message.delete()
+
+        messages = sqs.receive_messages(QueueUrl=queue_url, MaxNumberOfMessages=1, )
+
+
+def load_data(message) -> xarray.Dataset:
+    dataset_id = message.id
+
+    dc = datacube.Datacube()
+    dataset = dc.index.datasets.get(dataset_id)
+    data = native_load(dataset)
+    return data
+
 
 if __name__ == '__main__':
     process_sqs_messages()
