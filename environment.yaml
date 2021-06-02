@@ -13,3 +13,6 @@ dependencies:
   - shapely
   - fiona
   - xarray
+  - toolz
+  - pip:
+      - boto3_fixtures

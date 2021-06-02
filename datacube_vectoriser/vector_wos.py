@@ -9,32 +9,27 @@
 # 5. join both data types back together as one Geopandas Geodataframe (container for sapely objects with projection imformation)
 # 6. export an a single shapefile with attributes intact.
 
+import fiona
 # Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
-
+import geopandas
 import geopandas as gp
 import pandas as pd
 import rasterio.features
-# import modules
 import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
-from shapely.geometry import shape
-
-"""OPEN GEOTIFF"""
-
-smol = 'Little_WOs_nrt_water_2021_02_08.tif'
-
-# Open geotiff and reformat to Xarray DataArray
-geotiff_wos = xr.open_rasterio(smol)  # 'ga_s2am_wo_0-0-1_49JGN_2021-02-08_nrt_water.tif')
-wos_dataset = geotiff_wos.to_dataset('band')
-wos_dataset = wos_dataset.rename({1: 'wo'})
-
-"""begin doing thing to the tiff"""
+from shapely.geometry import shape, mapping
 
 
-def method_name(wos_dataset):
-    global dataset_crs, dialated_water, dialated_not_analysed
-    dataset_crs = from_epsg((wos_dataset.crs)[11:])
+def load_data(url):
+    # Open geotiff and reformat to Xarray DataArray
+    geotiff_wos = xr.open_rasterio(url)  # 'ga_s2am_wo_0-0-1_49JGN_2021-02-08_nrt_water.tif')
+    wos_dataset = geotiff_wos.to_dataset('band')
+    wos_dataset = wos_dataset.rename({1: 'wo'})
+    return wos_dataset
+
+
+def generate_raster_layers(wos_dataset):
     # Defining the three 'classes':
     # a) Water: where water is observed. Bit value 128
     # b) unspoken 'dry'. this is not vectorised and is left and transparent layer. bit values: 1 (no data) 2 (Contiguity)
@@ -52,20 +47,16 @@ def method_name(wos_dataset):
     erroded_not_analysed = xr.DataArray(ndimage.binary_erosion(not_analysed, iterations=2).astype(not_analysed.dtype),
                                         coords=not_analysed.coords)
     # dialating cloud 3 times after erroding 2, to create small overlap and iliminate gaps in data
-    dialated_water = xr.DataArray(ndimage.binary_dilation(erroded_water, iterations=3).astype(water_vals.dtype),
-                                  coords=water_vals.coords)
-    dialated_not_analysed = xr.DataArray(
+    dilated_water = xr.DataArray(ndimage.binary_dilation(erroded_water, iterations=3).astype(water_vals.dtype),
+                                 coords=water_vals.coords)
+    dilated_not_analysed = xr.DataArray(
         ndimage.binary_dilation(erroded_not_analysed, iterations=(3)).astype(not_analysed.dtype),
         coords=not_analysed.coords)
 
-
-# grab crs from input tiff
-method_name(wos_dataset)
+    return dilated_water, dilated_not_analysed
 
 
-# vectorise the arrays
-
-def vectorise_data(xarrayDataArray, label='Label'):
+def vectorise_data(xarrayDataArray, transform, crs, label='Label'):
     """this module takes an Xarray DataArray and vectorises it as shapely geometries in a Geopandas Geodataframe
 
     Input
@@ -78,7 +69,7 @@ def vectorise_data(xarrayDataArray, label='Label'):
     vector = rasterio.features.shapes(
         xarrayDataArray.data.astype('float32'),
         mask=xarrayDataArray.data.astype('float32') == 1,  # this defines which part of array becomes polygons
-        transform=wos_dataset.transform)
+        transform=transform)
 
     # rasterio.features.shapes outputs tupples. we only want the polygon coordinate portions of the tupples
     vectored_data = list(vector)  # put tupple output in list
@@ -97,70 +88,82 @@ def vectorise_data(xarrayDataArray, label='Label'):
     # Create a geopandas dataframe populated with the polygon shapes
     data_gdf = gp.GeoDataFrame(data={'attribute': labels},
                                geometry=polygons,
-                               crs=dataset_crs)
-    return (data_gdf)
+                               crs=crs)
+    return data_gdf
 
 
-notAnalysedGPD = vectorise_data(dialated_not_analysed, label='Not_analysed')
+def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
+    raster = load_data(url)
 
-WaterGPD = vectorise_data(dialated_water, label='Water')
+    dataset_crs = from_epsg(raster.crs[11:])
+    dataset_transform = raster.transform
 
-# Simplify
+    # grab crs from input tiff
+    dilated_water, dilated_not_analysed = generate_raster_layers(raster)
 
-# Run simplification with 15 tollerance
-simplifyed_water = WaterGPD.simplify(10)
+    # vectorise the arrays
 
-simplifyed_notAnalysed = notAnalysedGPD.simplify(15)
+    notAnalysedGPD = vectorise_data(dilated_not_analysed, dataset_transform, dataset_crs, label='Not_analysed')
 
-# Put simplified shapes in a dataframe
-simple_waterGPD = gp.GeoDataFrame(geometry=simplifyed_water,
-                                  crs=dataset_crs)
+    WaterGPD = vectorise_data(dilated_water, dataset_transform, dataset_crs, label='Water')
 
-simple_notAnalysedGPD = gp.GeoDataFrame(geometry=simplifyed_notAnalysed,
-                                        crs=dataset_crs)
+    # Simplify
 
-# add attribute lables back in
-simple_waterGPD['attribute'] = WaterGPD['attribute']
+    # Run simplification with 15 tollerance
+    simplifyed_water = WaterGPD.simplify(10)
 
-simple_notAnalysedGPD['attribute'] = notAnalysedGPD['attribute']
+    simplifyed_notAnalysed = notAnalysedGPD.simplify(15)
 
-# change to 'epsg:3577' for output
-simple_waterGPD = simple_waterGPD.to_crs('epsg:3577')
-simple_notAnalysedGPD = simple_notAnalysedGPD.to_crs('epsg:3577')
+    # Put simplified shapes in a dataframe
+    simple_waterGPD = gp.GeoDataFrame(geometry=simplifyed_water,
+                                      crs=dataset_crs)
 
-# 6 Join together and save to file
+    simple_notAnalysedGPD = gp.GeoDataFrame(geometry=simplifyed_notAnalysed,
+                                            crs=dataset_crs)
+
+    # add attribute lables back in
+    simple_waterGPD['attribute'] = WaterGPD['attribute']
+
+    simple_notAnalysedGPD['attribute'] = notAnalysedGPD['attribute']
+
+    # change to 'epsg:3577' for output
+    simple_waterGPD = simple_waterGPD.to_crs('epsg:3577')
+    simple_notAnalysedGPD = simple_notAnalysedGPD.to_crs('epsg:3577')
+
+    # 6 Join together and save to file
+
+    All_classes = gp.GeoDataFrame(pd.concat([simple_waterGPD, simple_notAnalysedGPD], ignore_index=True),
+                                  crs=simple_notAnalysedGPD.crs)
+
+    return All_classes
 
 
-All_classes = gp.GeoDataFrame(pd.concat([simple_waterGPD, simple_notAnalysedGPD], ignore_index=True),
-                              crs=simple_notAnalysedGPD.crs)
+def save_to_file(gpd_dataframe):
+    # +
+    # #define output file name to save vectors as
+    outFile = 'Test_simplify/WO_vectors_test_clean'
 
-# +
-# #define output file name to save vectors as
-# outFile = 'Test_simplify/WO_vectors_test_clean'
+    # # Save the polygons to a shapefile
+    schema = {
+        'geometry': 'Polygon',
+        'properties': {
+            'attribute': 'str'
+        }
+    }
 
-# +
-# # Save the polygons to a shapefile
-# schema = {
-#     'geometry': 'Polygon',
-#     'properties': {
-#         'attribute':'str'
-#     }
-# }
+    # # Generate our dynamic filename
+    FileName = f'{outFile}.shp'
 
-# # Generate our dynamic filename
-# FileName = f'{outFile}.shp'
-
-# #create file and save
-# with fiona.open(FileName,
-#                 "w",
-#                     crs=from_epsg(3577),
-#             driver='ESRI Shapefile',
-#                 schema=schema) as output:
-#     for ix, poly in All_classes.iterrows():
-#         output.write(({
-#             'properties': {
-#                 'attribute': poly['attribute']
-#             },
-#             'geometry': mapping(shape(poly['geometry']))
-#         }))
-# -
+    # #create file and save
+    with fiona.open(FileName,
+                    "w",
+                    crs=from_epsg(3577),
+                    driver='ESRI Shapefile',
+                    schema=schema) as output:
+        for ix, poly in gpd_dataframe.iterrows():
+            output.write(({
+                'properties': {
+                    'attribute': poly['attribute']
+                },
+                'geometry': mapping(shape(poly['geometry']))
+            }))

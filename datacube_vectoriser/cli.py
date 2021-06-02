@@ -1,4 +1,6 @@
 import json
+import pathlib
+import tempfile
 
 import boto3
 import click
@@ -13,30 +15,32 @@ def process_sqs_messages(queue_url):
     process_messages(queue_url)
 
 
-def process_messages(queue_url):
-    sqs = boto3.resource('sqs')
-
-    # Receive message from SQS queue
-    messages = sqs.receive_messages(QueueUrl=queue_url, MaxNumberOfMessages=1, )
-
-    while len(messages) > 0:
-        for message in messages:
-            body = json.loads(message.body)
-
-            # Process
-
-            message.delete()
-
-        messages = sqs.receive_messages(QueueUrl=queue_url, MaxNumberOfMessages=1, )
 
 
-def load_data(message) -> xarray.Dataset:
-    dataset_id = message.id
+def message_to_dataset(message):
+    message_body = json.loads(message.body)
+    if message_body.get("Message"):
+        # This is probably a message created from an SNS, so it's double JSON encoded
+        return json.loads(message_body["Message"])
+    return message_body
 
+
+def load_data(dataset_id) -> xarray.Dataset:
     dc = datacube.Datacube()
     dataset = dc.index.datasets.get(dataset_id)
     data = native_load(dataset)
     return data
+
+
+
+def upload_to_s3(destination: str, src_path: pathlib.Path):
+    s3 = boto3.resource('s3')
+
+
+def send_sns_notification(sns_topic):
+    # TODO: Decide on message and message attributes
+    # Most basic could simply be an S3 URL
+    pass
 
 
 if __name__ == '__main__':
