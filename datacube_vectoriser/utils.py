@@ -1,14 +1,17 @@
-import json
-import os
 from concurrent import futures
 
 import boto3
-from toolz import dicttoolz
+import json
+import os
+from pathlib import PurePosixPath
+from toolz import dicttoolz, get_in
+from typing import Tuple, Optional
+from urllib.parse import urlparse
 
 
 def _stac_to_sns(sns_arn, stac):
     """
-    Publish our STAC document to an SNS
+    Publish a STAC document to an SNS
     """
     bbox = stac["bbox"]
 
@@ -41,6 +44,7 @@ def _stac_to_sns(sns_arn, stac):
 
 
 def upload_directory(directory, bucket, prefix, boto3_session: boto3.Session = None):
+    """Recursively upload a directory to an s3 bucket"""
     if boto3_session is None:
         boto3_session = boto3.Session()
     s3 = boto3_session.client("s3")
@@ -71,7 +75,9 @@ def upload_directory(directory, bucket, prefix, boto3_session: boto3.Session = N
             except Exception as e:
                 print("Exception {} encountered while uploading file {}".format(e, upload_task[task]))
 
+
 def receive_messages(queue_url):
+    """Yield SQS Messages until the queue is empty"""
     sqs = boto3.resource('sqs')
     queue = sqs.Queue(queue_url)
 
@@ -80,12 +86,31 @@ def receive_messages(queue_url):
 
     while len(messages) > 0:
         for message in messages:
-            # body = json.loads(message.body)
             yield message
 
-            # message.delete()
-
         messages = queue.receive_messages(MaxNumberOfMessages=1, )
+
+
+def geotiff_url_from_stac(stac_document) -> Optional[str]:
+    return get_in(['assets', 'water', 'href'], stac_document)
+
+
+def output_name_from_url(src_url, file_suffix) -> Tuple[PurePosixPath, str]:
+    """Derive the output directory structure and filename from the input URL"""
+    o = urlparse(src_url)
+    path = PurePosixPath(o.path)
+
+    relative_path = PurePosixPath(*path.parts[-6:-1])
+
+    filename = path.with_suffix(file_suffix).name
+
+    # parts
+    # Out[6]: ['097', '075', '1998', '08', '17']
+    # filename
+    # Out[7]: 'ga_ls_wo_3_097075_1998-08-17_final_water.tif'
+
+    return relative_path, filename
+
 
 def chain_funcs(arg, *funcs):
     result = arg

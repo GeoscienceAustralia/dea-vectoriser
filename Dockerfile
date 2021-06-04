@@ -1,5 +1,5 @@
 
-# Create image with docker buildx build -t datacube-vectoriser .
+# Create image with docker buildx build -t dea-vectoriser .
 
 # Thankyou https://uwekorn.com/2021/03/01/deploying-conda-environments-in-docker-how-to-do-it-right.html
 
