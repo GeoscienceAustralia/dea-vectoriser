@@ -2,7 +2,7 @@ import boto3
 import json
 from pathlib import PurePosixPath
 
-from datacube_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, geotiff_url_from_stac
+from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, geotiff_url_from_stac
 
 
 def test_s3_directory_upload(s3, tmp_path):

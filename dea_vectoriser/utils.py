@@ -3,7 +3,8 @@ from concurrent import futures
 import boto3
 import json
 import os
-from pathlib import PurePosixPath
+from backports.tempfile import TemporaryDirectory
+from pathlib import PurePosixPath, Path
 from toolz import dicttoolz, get_in
 from typing import Tuple, Optional
 from urllib.parse import urlparse
@@ -95,6 +96,27 @@ def geotiff_url_from_stac(stac_document) -> Optional[str]:
     return get_in(['assets', 'water', 'href'], stac_document)
 
 
+def url_to_bucket_and_key(url) -> Tuple[str, str]:
+    """Parse an s3:// URL into bucket + key """
+    o = urlparse(url)
+    return o.hostname, o.path
+
+
+def save_vector_to_s3(vector_data, src_url, dest_prefix, format='shp'):
+    output_relative_path, filename = output_name_from_url(src_url, 'shp')
+
+    bucket, prefix = url_to_bucket_and_key(dest_prefix)
+
+    with TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        output_path = tmpdir / output_relative_path
+        output_path.mkdir(parents=True)
+
+        vector_data.to_file(filename)
+
+        upload_directory(tmpdir, bucket, prefix)
+
+
 def output_name_from_url(src_url, file_suffix) -> Tuple[PurePosixPath, str]:
     """Derive the output directory structure and filename from the input URL"""
     o = urlparse(src_url)
@@ -117,3 +139,10 @@ def chain_funcs(arg, *funcs):
     for f in funcs:
         result = f(result)
     return result
+
+
+def load_document_from_s3(s3_url):
+    bucket, key = url_to_bucket_and_key(s3_url)
+    s3_client = boto3.client('s3')
+    s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
+    return json.loads(s3_response_object['Body'].read())

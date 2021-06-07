@@ -1,17 +1,16 @@
 from pathlib import Path
 
-from datacube_vectoriser import vector_wos
+from dea_vectoriser import vector_wos
 
 
-def test_create_vectors():
-    smol = 'Little_WOs_nrt_water_2021_02_08.tif'
+def test_create_vectors(sample_data, tmp_path):
+    sample_tiff = sample_data / "sample_raster.tif"
 
-    gpd = vector_wos.vectorise_wos_from_url(smol)
-    # raster = vector_wos.load_data(smol)
+    gpd = vector_wos.vectorise_wos_from_url(sample_tiff)
 
     # vector_wos.generate_raster_layers(raster)
     # with tempdir() as tmpdir:
-    filename = "testfilename.shp"
+    filename = str(tmp_path / "testfilename.shp")
     gpd.to_file(filename)
 
     assert Path(filename).exists()
