@@ -2,12 +2,15 @@ from concurrent import futures
 
 import boto3
 import json
+import logging
 import os
 from backports.tempfile import TemporaryDirectory
 from pathlib import PurePosixPath, Path
 from toolz import dicttoolz, get_in
 from typing import Tuple, Optional
 from urllib.parse import urlparse
+
+LOG = logging.getLogger(__name__)
 
 
 def _stac_to_sns(sns_arn, stac):
@@ -99,21 +102,25 @@ def geotiff_url_from_stac(stac_document) -> Optional[str]:
 def url_to_bucket_and_key(url) -> Tuple[str, str]:
     """Parse an s3:// URL into bucket + key """
     o = urlparse(url)
-    return o.hostname, o.path
+    return o.hostname, o.path.lstrip('/')
 
 
-def save_vector_to_s3(vector_data, src_url, dest_prefix, format='shp'):
-    output_relative_path, filename = output_name_from_url(src_url, 'shp')
+def save_vector_to_s3(vector_data, src_url, dest_prefix, format='.shp'):
+    output_relative_path, filename = output_name_from_url(src_url, format)
+    LOG.debug(f'Saving vector output to path: {output_relative_path}, filename: {filename}')
 
     bucket, prefix = url_to_bucket_and_key(dest_prefix)
+    LOG.debug(f'Saving Vector output into Bucket: {bucket} Prefix: {prefix}')
 
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         output_path = tmpdir / output_relative_path
         output_path.mkdir(parents=True)
 
-        vector_data.to_file(filename)
+        LOG.debug(f'Writing Vector data to local file: {output_path / filename}')
+        vector_data.to_file(output_path / filename)
 
+        LOG.debug(f'Uploading {tmpdir} to Bucket: {bucket} Prefix Path: {prefix}')
         upload_directory(tmpdir, bucket, prefix)
 
 
@@ -143,6 +150,7 @@ def chain_funcs(arg, *funcs):
 
 def load_document_from_s3(s3_url):
     bucket, key = url_to_bucket_and_key(s3_url)
+    LOG.debug(f"Loading S3 object from Bucket: {bucket} Key: {key}")
     s3_client = boto3.client('s3')
     s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
     return json.loads(s3_response_object['Body'].read())
