@@ -47,6 +47,14 @@ def _stac_to_sns(sns_arn, stac):
     )
 
 
+def publish_sns_message(sns_arn, message):
+    client = boto3.client("sns")
+    client.publish(
+        TopicArn=sns_arn,
+        Message=message,
+    )
+
+
 def upload_directory(directory, bucket, prefix, boto3_session: boto3.Session = None):
     """Recursively upload a directory to an s3 bucket"""
     if boto3_session is None:

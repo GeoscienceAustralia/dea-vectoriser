@@ -1,8 +1,10 @@
 import boto3
 import json
+import pytest
 from pathlib import PurePosixPath
 
-from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, geotiff_url_from_stac
+from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, geotiff_url_from_stac, \
+    publish_sns_message
 
 
 def test_s3_directory_upload(s3, tmp_path):
@@ -47,18 +49,42 @@ def test_receive_multiple_sqs_messages(sqs):
     assert expected == received
 
 
-def test_send_sns_message():
-    assert False
+def test_send_sns_message(sqs, sns):
+    MSG_TEXT = 'Hello world!'
+    sns_client = boto3.client('sns')
+    topic_arn = sns_client.list_topics()['Topics'][0]['TopicArn']
+    sqs_resource = boto3.resource('sqs')
+    queue = sqs_resource.get_queue_by_name(QueueName='first-queue')
+    sns_client.subscribe(
+        TopicArn=topic_arn,
+        Protocol='sqs',
+        Endpoint=queue.attributes['QueueArn'],
+    )
+    publish_sns_message(topic_arn, MSG_TEXT)
+
+    messages = list(receive_messages(queue.url))
+    assert len(messages) == 1
+    for message in messages:
+        body = json.loads(message.body)
+        assert body['Message'] == MSG_TEXT
 
 
-def test_generating_output_path_and_filename():
-    src_url = 's3://dea-public-data/derivative/ga_ls_wo_3/1-6-0/097/075/1998/08/17/' \
-              'ga_ls_wo_3_097075_1998-08-17_final_water.tif'
-
+@pytest.mark.parametrize(
+    "src_url,output_path,output_filename",
+    [
+        ('s3://dea-public-data/derivative/ga_ls_wo_3/1-6-0/097/075/1998/08/17/ga_ls_wo_3_097075_1998-08-17_final_water'
+         '.tif', '097/075/1998/08/17', 'ga_ls_wo_3_097075_1998-08-17_final_water.shp'),
+        ('s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/54/GXV/2021/05/15'
+         '/20210515T013627/ga_s2_wo_3_54GXV_2021-05-15_nrt_water.tif',
+         'GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water.shp'
+         ),
+    ]
+)
+def test_generating_output_path_and_filename(src_url, output_path, output_filename):
     path, filename = output_name_from_url(src_url, '.shp')
 
-    assert PurePosixPath('097/075/1998/08/17') == path
-    assert filename == 'ga_ls_wo_3_097075_1998-08-17_final_water.shp'
+    assert path == PurePosixPath(output_path)
+    assert filename == output_filename
 
 
 def test_load_and_process_stac(sample_data):
