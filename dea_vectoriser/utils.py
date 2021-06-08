@@ -12,6 +12,13 @@ from urllib.parse import urlparse
 
 LOG = logging.getLogger(__name__)
 
+# Mapping from Name: File extension
+OUTPUT_FORMATS = {
+    'Shapefile': '.shp',
+    'GeoJSON': '.json',
+    'GPKG': '.gpkg'
+}
+
 
 def _stac_to_sns(sns_arn, stac):
     """
@@ -113,8 +120,9 @@ def url_to_bucket_and_key(url) -> Tuple[str, str]:
     return o.hostname, o.path.lstrip('/')
 
 
-def save_vector_to_s3(vector_data, src_url, dest_prefix, format='.shp'):
-    output_relative_path, filename = output_name_from_url(src_url, format)
+def save_vector_to_s3(vector_data, src_url, dest_prefix, format='GeoJSON'):
+    extension = OUTPUT_FORMATS[format]
+    output_relative_path, filename = output_name_from_url(src_url, extension)
     LOG.debug(f'Saving vector output to path: {output_relative_path}, filename: {filename}')
 
     bucket, prefix = url_to_bucket_and_key(dest_prefix)
@@ -126,18 +134,21 @@ def save_vector_to_s3(vector_data, src_url, dest_prefix, format='.shp'):
         output_path.mkdir(parents=True)
 
         LOG.debug(f'Writing Vector data to local file: {output_path / filename}')
-        vector_data.to_file(output_path / filename)
+        vector_data.to_file(output_path / filename, driver=format)
 
         LOG.debug(f'Uploading {tmpdir} to Bucket: {bucket} Prefix Path: {prefix}')
         upload_directory(tmpdir, bucket, prefix)
+    return f"{dest_prefix}/{output_path / filename}"
 
 
-def output_name_from_url(src_url, file_suffix) -> Tuple[PurePosixPath, str]:
-    """Derive the output directory structure and filename from the input URL"""
+def output_name_from_url(src_url, file_suffix, keep_path_parts=5) -> Tuple[PurePosixPath, str]:
+    """Derive the output directory structure and filename from the input URL
+
+    """
     o = urlparse(src_url)
     path = PurePosixPath(o.path)
 
-    relative_path = PurePosixPath(*path.parts[-6:-1])
+    relative_path = PurePosixPath(*path.parts[-(keep_path_parts+1):-1])
 
     filename = path.with_suffix(file_suffix).name
 
