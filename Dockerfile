@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /
     find /opt/conda/lib/python3.9/site-packages -name '*.pyx' -delete && \
     find /opt/conda/ -name '*.a' -delete && \
     find /opt/conda/ -name '__pycache__' -type d -exec rm -rf '{}' '+' && \
-    rm -rf /opt/conda/lib/python-3.9/site-packages/{sklearn,matplotlib,bokeh} && \
+    rm -rf /opt/conda/lib/python3.9/site-packages/{sklearn,matplotlib,bokeh} && \
 #    rm -rf /opt/conda/lib/libpoppler* && \
     bash -O extglob -c 'rm -rf /opt/conda/lib/python3.9/site-packages/botocore/data/!(sqs,sns,s3)'
 
