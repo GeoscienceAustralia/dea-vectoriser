@@ -4,7 +4,7 @@ import boto3
 import json
 import logging
 import os
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 from pathlib import PurePosixPath, Path
 from toolz import dicttoolz, get_in
 from typing import Tuple, Optional

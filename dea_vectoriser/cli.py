@@ -10,17 +10,17 @@ DEFAULT_DESTINATION = 's3://dea-public-data-dev/carsa/vector_wos'
 
 LOG = logging.getLogger(__name__)
 
-destination_option = click.option('destination',
+destination_option = click.option('--destination',
                                   envvar='VECT_DESTINATION',
                                   default=DEFAULT_DESTINATION,
                                   help='Vector destination',
                                   show_default=True)
-format_option = click.option('format',
+format_option = click.option('--output-format',
                              envvar='VECT_FORMAT',
                              default='GeoJSON',
                              show_default=True,
                              type=click.Choice(OUTPUT_FORMATS))
-sns_topic_option = click.option('sns-topic',
+sns_topic_option = click.option('--sns-topic',
                                 envvar='VECT_SNS_TOPIC',
                                 )
 
@@ -35,11 +35,11 @@ def cli():
 @format_option
 @sns_topic_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
-def process_sqs_messages(queue_url, destination, format, sns_topic):
+def process_sqs_messages(queue_url, destination, output_format, sns_topic):
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
 
-        vector_convert(stac_document, destination, format, sns_topic)
+        vector_convert(stac_document, destination, output_format, sns_topic)
 
         message.delete()
 
@@ -49,7 +49,7 @@ def process_sqs_messages(queue_url, destination, format, sns_topic):
 @format_option
 @sns_topic_option
 @click.argument('s3_urls', nargs=-1)
-def run_from_s3_url(s3_urls, destination, format, sns_topic):
+def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
     """Convert WO dataset/s to Vector format and upload to S3
 
     S3_URLs should be one or more paths to STAC documents.
@@ -60,10 +60,10 @@ def run_from_s3_url(s3_urls, destination, format, sns_topic):
 
         stac_document = load_document_from_s3(s3_url)
 
-        vector_convert(stac_document, destination, format, sns_topic)
+        vector_convert(stac_document, destination, output_format, sns_topic)
 
 
-def vector_convert(stac_document, destination, format, sns_topic):
+def vector_convert(stac_document, destination, output_format, sns_topic):
     LOG.debug(f"Loaded STAC Document. Dataset Id: {stac_document.get('id')}")
     input_raster_url = geotiff_url_from_stac(stac_document)
     LOG.debug(f"Found Water Observations GeoTIFF URL: {input_raster_url}")

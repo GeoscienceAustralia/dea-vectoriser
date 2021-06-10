@@ -12,13 +12,18 @@ RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /
     rm -rf /opt/conda/lib/libpython3.9.so.1.0 && \
     rm -rf /opt/conda/bin/pdf* && rm -rf /opt/conda/bin/postgres && rm -rf /opt/conda/bin/x86_64-conda-linux-gnu-ld && \
     rm -rf /opt/conda/share/{locale,poppler,doc} && \
-    rm -rf /opt/conda/lib/python3.9/site-packages/bokeh && \
     find /opt/conda/lib/python3.9/site-packages/scipy -name 'tests' -type d -exec rm -rf '{}' '+' && \
     find /opt/conda/lib/python3.9/site-packages/numpy -name 'tests' -type d -exec rm -rf '{}' '+' && \
     find /opt/conda/lib/python3.9/site-packages/pandas -name 'tests' -type d -exec rm -rf '{}' '+' && \
     find /opt/conda/lib/python3.9/site-packages -name '*.pyx' -delete && \
     find /opt/conda/ -name '*.a' -delete && \
-    find /opt/conda/ -name '__pycache__' -type d -exec rm -rf '{}' '+'
+    find /opt/conda/ -name '__pycache__' -type d -exec rm -rf '{}' '+' && \
+    rm -rf /opt/conda/lib/python-3.9/site-packages/{sklearn,matplotlib,bokeh} && \
+#    rm -rf /opt/conda/lib/libpoppler* && \
+    bash -O extglob -c 'rm -rf /opt/conda/lib/python3.9/site-packages/botocore/data/!(sqs,sns,s3)'
 
 
-COPY . .
+
+COPY dust-v0.5.4-x86_64-unknown-linux-gnu/dust /bin/dust
+COPY dist /dist
+RUN pip install dist/*.whl
