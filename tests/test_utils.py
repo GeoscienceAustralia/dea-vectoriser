@@ -73,15 +73,17 @@ def test_send_sns_message(sqs, sns):
     "src_url,output_path,output_filename",
     [
         ('s3://dea-public-data/derivative/ga_ls_wo_3/1-6-0/097/075/1998/08/17/ga_ls_wo_3_097075_1998-08-17_final_water'
-         '.tif', '097/075/1998/08/17', 'ga_ls_wo_3_097075_1998-08-17_final_water.shp'),
+         '.tif', '097/075/1998/08/17', 'ga_ls_wo_3_097075_1998-08-17_final_water.gpkg'),
         ('s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/54/GXV/2021/05/15'
          '/20210515T013627/ga_s2_wo_3_54GXV_2021-05-15_nrt_water.tif',
-         'GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water.shp'
+         '54/GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water.gpkg'
          ),
+        ('s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/55/HFB/2021/03/20/ga_s2_wo_3_55HFB_2021-03-20_nrt.stac'
+         '-item.json', )
     ]
 )
 def test_generating_output_path_and_filename(src_url, output_path, output_filename):
-    path, filename = output_name_from_url(src_url, '.shp')
+    path, filename = output_name_from_url(src_url, '.gpkg')
 
     assert path == PurePosixPath(output_path)
     assert filename == output_filename

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import click
 import json
 import logging
@@ -63,17 +65,22 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
         vector_convert(stac_document, destination, output_format, sns_topic)
 
 
-def vector_convert(stac_document, destination, output_format, sns_topic):
+def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str]):
     LOG.debug(f"Loaded STAC Document. Dataset Id: {stac_document.get('id')}")
+
     input_raster_url = geotiff_url_from_stac(stac_document)
     LOG.debug(f"Found Water Observations GeoTIFF URL: {input_raster_url}")
+
     # Load Data
     vector = vectorise_wos_from_url(input_raster_url)
     LOG.debug("Generated in RAM Vectors.")
-    written_url = save_vector_to_s3(vector, input_raster_url, destination, format=format)
+
+    written_url = save_vector_to_s3(vector, input_raster_url, destination, output_format=output_format)
     LOG.info(f"Wrote vector to {written_url}")
-    LOG.info(f"Sending Vector URL notification to {sns_topic}")
-    publish_sns_message(sns_topic, written_url)
+
+    if sns_topic:
+        LOG.info(f"Sending Vector URL notification to {sns_topic}")
+        publish_sns_message(sns_topic, written_url)
 
 
 def load_message(message):

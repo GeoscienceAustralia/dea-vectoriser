@@ -4,8 +4,8 @@ import boto3
 import json
 import logging
 import os
-from tempfile import TemporaryDirectory
 from pathlib import PurePosixPath, Path
+from tempfile import TemporaryDirectory
 from toolz import dicttoolz, get_in
 from typing import Tuple, Optional
 from urllib.parse import urlparse
@@ -120,8 +120,8 @@ def url_to_bucket_and_key(url) -> Tuple[str, str]:
     return o.hostname, o.path.lstrip('/')
 
 
-def save_vector_to_s3(vector_data, src_url, dest_prefix, format='GeoJSON'):
-    extension = OUTPUT_FORMATS[format]
+def save_vector_to_s3(vector_data, src_url, dest_prefix, output_format='GeoJSON'):
+    extension = OUTPUT_FORMATS[output_format]
     output_relative_path, filename = output_name_from_url(src_url, extension)
     LOG.debug(f'Saving vector output to path: {output_relative_path}, filename: {filename}')
 
@@ -134,23 +134,38 @@ def save_vector_to_s3(vector_data, src_url, dest_prefix, format='GeoJSON'):
         output_path.mkdir(parents=True)
 
         LOG.debug(f'Writing Vector data to local file: {output_path / filename}')
-        vector_data.to_file(output_path / filename, driver=format)
+        vector_data.to_file(output_path / filename, driver=output_format)
 
         LOG.debug(f'Uploading {tmpdir} to Bucket: {bucket} Prefix Path: {prefix}')
         upload_directory(tmpdir, bucket, prefix)
-    return f"{dest_prefix}/{output_path / filename}"
+    return f"{dest_prefix}/{output_relative_path / filename}"
 
 
-def output_name_from_url(src_url, file_suffix, keep_path_parts=5) -> Tuple[PurePosixPath, str]:
+def output_name_from_url(src_url,
+                         output_file_extension,
+                         keep_path_parts: Optional[int] = None) -> Tuple[PurePosixPath, str]:
     """Derive the output directory structure and filename from the input URL
 
+    :param src_url: the input URL
+    :param output_file_extension: the file extension the output file needs
+    :param keep_path_parts: the number of path components to keep, or leave out to guess automatically for known GA
+                            Sentinel 2 and Landsat urls
+
     """
+    if keep_path_parts is None:
+        if '_s2_' in src_url:
+            keep_path_parts = 6
+        elif '_ls_' in src_url:
+            keep_path_parts = 5
+        else:
+            raise ValueError(f"Unable to derive output name. `src_url` ({src_url}) doesn't match either Landsat or "
+                             f"Sentinel paths")
     o = urlparse(src_url)
     path = PurePosixPath(o.path)
 
-    relative_path = PurePosixPath(*path.parts[-(keep_path_parts+1):-1])
+    relative_path = PurePosixPath(*path.parts[-(keep_path_parts + 1):-1])
 
-    filename = path.with_suffix(file_suffix).name
+    filename = path.with_suffix(output_file_extension).name
 
     # parts
     # Out[6]: ['097', '075', '1998', '08', '17']
