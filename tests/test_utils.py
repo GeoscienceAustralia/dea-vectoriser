@@ -78,8 +78,6 @@ def test_send_sns_message(sqs, sns):
          '/20210515T013627/ga_s2_wo_3_54GXV_2021-05-15_nrt_water.tif',
          '54/GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water.gpkg'
          ),
-        ('s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/55/HFB/2021/03/20/ga_s2_wo_3_55HFB_2021-03-20_nrt.stac'
-         '-item.json', )
     ]
 )
 def test_generating_output_path_and_filename(src_url, output_path, output_filename):
