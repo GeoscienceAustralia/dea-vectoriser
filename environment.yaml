@@ -1,4 +1,4 @@
-name: base
+# name: dea-vectoriser
 channels:
   - conda-forge
 dependencies:
@@ -11,7 +11,13 @@ dependencies:
   - click
   - shapely
   - fiona
+  - pip
   - xarray
   - toolz
+
+  # Only required for testing
+  - pytest
+  - pytest-cov
+  - moto
   - pip:
       - boto3_fixtures

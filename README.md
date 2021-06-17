@@ -11,10 +11,14 @@ A brief description of what this project does and who it's for
 - Configurable output format (GeoPackage, GeoJSON, Shapefile)
 - Reads STAC notifications from an SQS queue to discover rasters to process
 
-## Development
+## Quick Start
+
+
 
 ``` bash
-
+  mamba env create --file environment.yaml --name dea-vectoriser
+  conda activate dea-vectoriser
+  pip install -e .
 ```
 
   
@@ -29,6 +33,9 @@ To deploy this project run
   make build-image
 ```
 
+## How it works
+
+DEA Vectoriser
 
   
 
