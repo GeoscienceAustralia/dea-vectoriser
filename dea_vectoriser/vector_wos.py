@@ -1,11 +1,11 @@
 # read in WOs geotiff, output Vector
 
 # 1. create binary arrays for classed of interest: 1)water and 2)Not Analysed
-# 2. conduct binary errosion and dialation to remove single pixles/big gaps between datatypes
-#     - B) conduct fill on water to remove single pixle holes?
-#     - C) conduct 1 pixle buffer of no-data class? (unsure if should be latter in workflow)
+# 2. conduct binary erosion and dilation to remove single pixels/big gaps between datatypes
+#     - B) conduct fill on water to remove single pixel holes?
+#     - C) conduct 1 pixel buffer of no-data class? (unsure if should be latter in workflow)
 # 3. vectorise
-# 4. simplify shapes to remove complixity
+# 4. simplify shapes to remove complexity
 # 5. join both data types back together as one Geopandas Geodataframe (container for shapely objects with projection
 #    information)
 # 6. export an a single shapefile with attributes intact.
@@ -109,8 +109,8 @@ def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
     WaterGPD = vectorise_data(dilated_water, dataset_transform, dataset_crs, label='Water')
 
     # Simplify
-    
-    #change to 'epsg:3577' prior to simplifiying to insure consistent results
+
+    # change to 'epsg:3577' prior to simplifiying to insure consistent results
     notAnalysedGPD = notAnalysedGPD.to_crs('epsg:3577')
     WaterGPD = WaterGPD.to_crs('epsg:3577')
 
@@ -130,7 +130,6 @@ def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
     simple_waterGPD['attribute'] = WaterGPD['attribute']
 
     simple_notAnalysedGPD['attribute'] = notAnalysedGPD['attribute']
-
 
     # 6 Join together and save to file
 
