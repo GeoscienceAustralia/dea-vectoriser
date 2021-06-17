@@ -1,8 +1,7 @@
-from typing import Optional
-
 import click
 import json
 import logging
+from typing import Optional
 
 from dea_vectoriser.utils import receive_messages, geotiff_url_from_stac, load_document_from_s3, save_vector_to_s3, \
     OUTPUT_FORMATS, publish_sns_message
@@ -29,7 +28,47 @@ sns_topic_option = click.option('--sns-topic',
 
 @click.group()
 def cli():
-    logging.basicConfig(level=logging.DEBUG)
+    logging_config = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'verbose': {
+                'format': '%(asctime)s %(levelname)s %(name)s %(message)s'
+                # 'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
+            },
+            'simple': {
+                'format': '%(levelname)s %(message)s'
+            },
+        },
+        'handlers': {
+            'console': {
+                'level': 'DEBUG',
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose'
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['console'],
+                'level': 'INFO',
+            },
+            'botocore': {
+                'propagate': True,
+                'level': 'INFO',
+            },
+            'rasterio': {
+                'level': 'INFO',
+                'propagate': True,
+            },
+            'dea_vectoriser': {
+                'handlers': ['console'],
+                'level': 'DEBUG',
+                'propagate': False,
+            }
+        }
+    }
+
+    logging.config.dictConfig(logging_config)
 
 
 @cli.command()
@@ -56,7 +95,7 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
 
     S3_URLs should be one or more paths to STAC documents.
     """
-    LOG.debug(f'Processing {len(s3_urls)} S3 paths')
+    LOG.info(f'Processing {len(s3_urls)} S3 paths')
     for s3_url in s3_urls:
         LOG.info(f"Processing {s3_url}")
 
