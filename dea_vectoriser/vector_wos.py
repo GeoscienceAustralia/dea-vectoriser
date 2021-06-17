@@ -109,6 +109,10 @@ def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
     WaterGPD = vectorise_data(dilated_water, dataset_transform, dataset_crs, label='Water')
 
     # Simplify
+    
+    #change to 'epsg:3577' prior to simplifiying to insure consistent results
+    notAnalysedGPD = notAnalysedGPD.to_crs('epsg:3577')
+    WaterGPD = WaterGPD.to_crs('epsg:3577')
 
     # Run simplification with 15 tolerance
     simplified_water = WaterGPD.simplify(10)
@@ -117,19 +121,16 @@ def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
 
     # Put simplified shapes in a dataframe
     simple_waterGPD = gp.GeoDataFrame(geometry=simplified_water,
-                                      crs=dataset_crs)
+                                      crs=from_epsg('3577'))
 
     simple_notAnalysedGPD = gp.GeoDataFrame(geometry=simplified_not_analysed,
-                                            crs=dataset_crs)
+                                            crs=from_epsg('3577'))
 
     # add attribute labels back in
     simple_waterGPD['attribute'] = WaterGPD['attribute']
 
     simple_notAnalysedGPD['attribute'] = notAnalysedGPD['attribute']
 
-    # change to 'epsg:3577' for output
-    simple_waterGPD = simple_waterGPD.to_crs('epsg:3577')
-    simple_notAnalysedGPD = simple_notAnalysedGPD.to_crs('epsg:3577')
 
     # 6 Join together and save to file
 
