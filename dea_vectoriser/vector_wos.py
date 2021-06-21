@@ -13,13 +13,13 @@
 import geopandas
 import geopandas as gp
 import pandas as pd
-import rasterio.features
 import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
-from shapely.geometry import shape
 # Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
 from typing import Tuple
+
+from dea_vectoriser.vectorise import vectorise_data
 
 
 def load_wos_data(url) -> xr.Dataset:
@@ -59,42 +59,7 @@ def generate_raster_layers(wos_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.Da
     return dilated_water, dilated_not_analysed
 
 
-def vectorise_data(data_array: xr.DataArray, transform, crs, label='Label'):
-    """this module takes an Xarray DataArray and vectorises it as shapely geometries in a Geopandas Geodataframe
-
-    Input
-    data_array: a DataArray with boolean values (1,0) with 1 or True equal to the areas that will be turned
-                into vectors
-    label: default 'Label', String, the data label that will be added to each geometry in geodataframe
-
-    output
-    Geodataframe containing shapely geometries with data type label in a series called attribute"""
-
-    vector = rasterio.features.shapes(
-        data_array.data.astype('float32'),
-        mask=data_array.data.astype('float32') == 1,  # this defines which part of array becomes polygons
-        transform=transform)
-
-    # rasterio.features.shapes outputs tuples. we only want the polygon coordinate portions of the tuples
-    vectored_data = list(vector)  # put tuple output in list
-
-    # Extract the polygon coordinates from the list
-    polygons = [polygon for polygon, value in vectored_data]
-
-    # create a list with the data label type
-    labels = [label for _ in polygons]
-
-    # Convert polygon coordinates into polygon shapes
-    polygons = [shape(polygon) for polygon in polygons]
-
-    # Create a geopandas dataframe populated with the polygon shapes
-    data_gdf = gp.GeoDataFrame(data={'attribute': labels},
-                               geometry=polygons,
-                               crs=crs)
-    return data_gdf
-
-
-def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
+def vectorise_wos(url) -> geopandas.GeoDataFrame:
     raster = load_wos_data(url)
 
     dataset_crs = from_epsg(raster.crs[11:])
@@ -131,7 +96,7 @@ def vectorise_wos_from_url(url) -> geopandas.GeoDataFrame:
 
     simple_notAnalysedGPD['attribute'] = notAnalysedGPD['attribute']
 
-    # 6 Join together and save to file
+    # 6 Join layers together
 
     all_classes = gp.GeoDataFrame(pd.concat([simple_waterGPD, simple_notAnalysedGPD], ignore_index=True),
                                   crs=simple_notAnalysedGPD.crs)

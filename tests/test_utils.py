@@ -3,7 +3,7 @@ import json
 import pytest
 from pathlib import PurePosixPath
 
-from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, geotiff_url_from_stac, \
+from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, asset_url_from_stac, \
     publish_sns_message
 
 
@@ -73,25 +73,26 @@ def test_send_sns_message(sqs, sns):
     "src_url,output_path,output_filename",
     [
         ('s3://dea-public-data/derivative/ga_ls_wo_3/1-6-0/097/075/1998/08/17/ga_ls_wo_3_097075_1998-08-17_final_water'
-         '.tif', '097/075/1998/08/17', 'ga_ls_wo_3_097075_1998-08-17_final_water.gpkg'),
+         '.tif', '097/075/1998/08/17', 'ga_ls_wo_3_097075_1998-08-17_final_water'),
         ('s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/54/GXV/2021/05/15'
          '/20210515T013627/ga_s2_wo_3_54GXV_2021-05-15_nrt_water.tif',
-         '54/GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water.gpkg'
+         '54/GXV/2021/05/15/20210515T013627', 'ga_s2_wo_3_54GXV_2021-05-15_nrt_water'
          ),
     ]
 )
 def test_generating_output_path_and_filename(src_url, output_path, output_filename):
-    path, filename = output_name_from_url(src_url, '.gpkg')
+    path, filename = output_name_from_url(src_url)
 
     assert path == PurePosixPath(output_path)
     assert filename == output_filename
 
 
 def test_load_and_process_stac(sample_data):
-    message = json.loads((sample_data / 'sample_stac.json').read_text())
+    sample_stac_path = [file for file in sample_data.glob('**/*.json')][0]
+    message = json.loads(sample_stac_path.read_text())
 
     assert 'id' in message
 
-    s3_url = geotiff_url_from_stac(message)
+    s3_url = asset_url_from_stac(message, asset_type='water')
     assert s3_url is not None
     assert s3_url.startswith("s3://")

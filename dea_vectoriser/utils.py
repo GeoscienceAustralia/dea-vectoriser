@@ -1,57 +1,41 @@
-from concurrent import futures
-
-import boto3
 import json
 import logging
 import os
-from pathlib import PurePosixPath, Path
-from tempfile import TemporaryDirectory
-from toolz import dicttoolz, get_in
+from concurrent import futures
+from pathlib import PurePosixPath
 from typing import Tuple, Optional
 from urllib.parse import urlparse
 
+import boto3
+from toolz import dicttoolz, get_in
+
 LOG = logging.getLogger(__name__)
 
-# Mapping from Name: File extension
-OUTPUT_FORMATS = {
-    'Shapefile': '.shp',
-    'GeoJSON': '.json',
-    'GPKG': '.gpkg'
-}
 
-
-def _stac_to_sns(sns_arn, stac):
+def stac_to_msg_and_attributes(stac):
     """
-    Publish a STAC document to an SNS
-    """
-    bbox = stac["bbox"]
+    Convert a STAC document to Message + MessageAttributes.
 
-    client = boto3.client("sns")
-    client.publish(
-        TopicArn=sns_arn,
-        Message=json.dumps(stac, indent=4),
-        MessageAttributes={
-            "action": {"DataType": "String", "StringValue": "ADDED"},
-            "datetime": {
-                "DataType": "String",
-                "StringValue": str(dicttoolz.get_in(["properties", "datetime"], stac)),
-            },
-            "product": {
-                "DataType": "String",
-                "StringValue": dicttoolz.get_in(["properties", "odc:product"], stac),
-            },
-            "maturity": {
-                "DataType": "String",
-                "StringValue": dicttoolz.get_in(
-                    ["properties", "dea:dataset_maturity"], stac
-                ),
-            },
-            "bbox.ll_lon": {"DataType": "Number", "StringValue": str(bbox.left)},
-            "bbox.ll_lat": {"DataType": "Number", "StringValue": str(bbox.bottom)},
-            "bbox.ur_lon": {"DataType": "Number", "StringValue": str(bbox.right)},
-            "bbox.ur_lat": {"DataType": "Number", "StringValue": str(bbox.top)},
+    Ready for sending to an SNS topic or SQS Queue
+    """
+    message_attributes = {
+        "action": {"DataType": "String", "StringValue": "ADDED"},
+        "datetime": {
+            "DataType": "String",
+            "StringValue": str(dicttoolz.get_in(["properties", "datetime"], stac)),
         },
-    )
+        "product": {
+            "DataType": "String",
+            "StringValue": dicttoolz.get_in(["properties", "odc:product"], stac),
+        },
+        "maturity": {
+            "DataType": "String",
+            "StringValue": dicttoolz.get_in(
+                ["properties", "dea:dataset_maturity"], stac
+            ),
+        },
+    }
+    return json.dumps(stac), message_attributes
 
 
 def publish_sns_message(sns_arn, message):
@@ -101,17 +85,18 @@ def receive_messages(queue_url):
     queue = sqs.Queue(queue_url)
 
     # Receive message from SQS queue
-    messages = queue.receive_messages(MaxNumberOfMessages=1, )
+    messages = queue.receive_messages(MaxNumberOfMessages=1)
 
     while len(messages) > 0:
         for message in messages:
             yield message
 
-        messages = queue.receive_messages(MaxNumberOfMessages=1, )
+        messages = queue.receive_messages(MaxNumberOfMessages=1)
 
 
-def geotiff_url_from_stac(stac_document) -> Optional[str]:
-    return get_in(['assets', 'water', 'href'], stac_document)
+def asset_url_from_stac(stac_document, asset_type) -> Optional[str]:
+    """Return Asset URL from STAC Document"""
+    return get_in(['assets', asset_type, 'href'], stac_document)
 
 
 def url_to_bucket_and_key(url) -> Tuple[str, str]:
@@ -120,35 +105,18 @@ def url_to_bucket_and_key(url) -> Tuple[str, str]:
     return o.hostname, o.path.lstrip('/')
 
 
-def save_vector_to_s3(vector_data, src_url, dest_prefix, output_format='GeoJSON'):
-    extension = OUTPUT_FORMATS[output_format]
-    output_relative_path, filename = output_name_from_url(src_url, extension)
-    LOG.debug(f'Saving vector output to path: {output_relative_path}, filename: {filename}')
-
-    bucket, prefix = url_to_bucket_and_key(dest_prefix)
-    LOG.debug(f'Saving Vector output into Bucket: {bucket} Prefix: {prefix}')
-
-    with TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        output_path = tmpdir / output_relative_path
-        output_path.mkdir(parents=True)
-
-        LOG.debug(f'Writing Vector data to local file: {output_path / filename}')
-        vector_data.to_file(output_path / filename, driver=output_format)
-
-        LOG.debug(f'Uploading {tmpdir} to Bucket: {bucket} Prefix Path: {prefix}')
-        upload_directory(tmpdir, bucket, prefix)
-    return f"{dest_prefix}/{output_relative_path / filename}"
+class VectoriserException(Exception):
+    """DEA Vectoriser has run into an error"""
 
 
 def output_name_from_url(src_url,
-                         output_file_extension,
+                         drop_extension=True,
                          keep_path_parts: Optional[int] = None) -> Tuple[PurePosixPath, str]:
     """Derive the output directory structure and filename from the input URL
 
     :param src_url: the input URL
-    :param output_file_extension: the file extension the output file needs
-    :param keep_path_parts: the number of path components to keep, or leave out to guess automatically for known GA
+    :param drop_extension: Drop the src file extension, ready for creating a derivative filename
+    :param keep_path_parts: the number of path components to keep, or None to guess automatically for known GA
                             Sentinel 2 and Landsat urls
 
     """
@@ -163,23 +131,16 @@ def output_name_from_url(src_url,
     o = urlparse(src_url)
     path = PurePosixPath(o.path)
 
+    # The relative directory structure. Eg: Path('097/075/1998/08/17')
     relative_path = PurePosixPath(*path.parts[-(keep_path_parts + 1):-1])
 
-    filename = path.with_suffix(output_file_extension).name
-
-    # parts
-    # Out[6]: ['097', '075', '1998', '08', '17']
-    # filename
-    # Out[7]: 'ga_ls_wo_3_097075_1998-08-17_final_water.tif'
+    if drop_extension:
+        # Just the base filename, without extension. Eg: 'ga_ls_wo_3_097075_1998-08-17_final_water'
+        filename = path.with_suffix('').name
+    else:
+        filename = path.name
 
     return relative_path, filename
-
-
-def chain_funcs(arg, *funcs):
-    result = arg
-    for f in funcs:
-        result = f(result)
-    return result
 
 
 def load_document_from_s3(s3_url):
