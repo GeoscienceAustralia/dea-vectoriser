@@ -18,6 +18,7 @@ dependencies:
   # Only required for testing
   - pytest
   - pytest-cov
+  - pytest-mock
   - moto
   - pip:
       - boto3_fixtures

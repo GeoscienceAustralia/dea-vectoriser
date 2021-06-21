@@ -88,6 +88,7 @@ def cli():
 @sns_topic_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
 def process_sqs_messages(queue_url, destination, output_format, sns_topic):
+    LOG.info(f'Processing messages from SQS: {queue_url}')
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
 
