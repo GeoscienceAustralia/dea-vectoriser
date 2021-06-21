@@ -10,7 +10,7 @@ from dea_vectoriser.utils import receive_messages, asset_url_from_stac, load_doc
 from dea_vectoriser.vector_wos import vectorise_wos
 from dea_vectoriser.vectorise import OUTPUT_FORMATS, save_vector_to_s3
 
-DEFAULT_DESTINATION = 's3://dea-public-data-dev/carsa/vector_wos'
+DEFAULT_DESTINATION = 's3://dea-public-data-dev/carsa/vector_wos/'
 
 LOG = logging.getLogger(__name__)
 
@@ -18,6 +18,8 @@ LOG = logging.getLogger(__name__)
 def validate_destination(ctx, param, value):
     if not value.startswith('s3://'):
         raise click.BadOptionUsage('destination must be an s3:// URL')
+    if not value.endswith('/'):
+        value += '/'
     return value
 
 

@@ -140,6 +140,7 @@ def output_name_from_url(src_url,
     else:
         filename = path.name
 
+    LOG.debug(f'Determined relative path: {relative_path} and filename: {filename} from Source URL: {src_url}')
     return relative_path, filename
 
 
