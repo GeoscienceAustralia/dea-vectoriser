@@ -1,4 +1,4 @@
-# name: dea-vectoriser
+name: dea-vectoriser
 channels:
   - conda-forge
 dependencies:
