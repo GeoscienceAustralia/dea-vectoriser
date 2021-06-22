@@ -23,6 +23,12 @@ def validate_destination(ctx, param, value):
     return value
 
 
+def validate_sns_topic(ctx, param, value):
+    if not value.startswith('arn:aws:sns:'):
+        raise click.BadOptionUsage('SNS Topic should start with arn:aws:sns')
+    return value
+
+
 destination_option = click.option('--destination',
                                   envvar='VECT_DESTINATION',
                                   default=DEFAULT_DESTINATION,
@@ -31,12 +37,12 @@ destination_option = click.option('--destination',
                                   show_default=True)
 format_option = click.option('--output-format',
                              envvar='VECT_FORMAT',
-                             default='GeoJSON',
+                             default='GPKG',
                              show_default=True,
                              type=click.Choice(OUTPUT_FORMATS))
 sns_topic_option = click.option('--sns-topic',
                                 envvar='VECT_SNS_TOPIC',
-                                )
+                                callback=validate_sns_topic)
 
 
 @click.group()
@@ -140,9 +146,6 @@ def vector_convert(stac_document, destination, output_format, sns_topic: Optiona
 
 def load_message(message):
     message_body = json.loads(message.body)
-    if message_body.get("Message"):
-        # This is probably a message created from an SNS, so it's twice JSON encoded
-        return json.loads(message_body["Message"])
     return message_body
 
 

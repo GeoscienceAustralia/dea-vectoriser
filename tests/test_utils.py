@@ -1,7 +1,8 @@
-import boto3
 import json
-import pytest
 from pathlib import PurePosixPath
+
+import boto3
+import pytest
 
 from dea_vectoriser.utils import upload_directory, receive_messages, output_name_from_url, asset_url_from_stac, \
     publish_sns_message
