@@ -57,7 +57,6 @@ jobs:
         with:
           env_vars: OS,PYTHON
           file: ./coverage.xml
-          verbose: true
 
 #  deploy-packages:
 ##   deploy:
