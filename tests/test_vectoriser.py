@@ -22,11 +22,10 @@ def test_create_vectors(sample_data, tmp_path):
     assert Path(filename).exists()
 
 
-def test_convert_from_s3(samples_on_s3, sample_data, mocker):
+def test_convert_from_s3(samples_on_s3, sample_data, monkeypatch):
     sample_tiff = list(sample_data.glob('**/*.tif'))[0]
-
     sample_xarray = xr.open_rasterio(sample_tiff)
-    mocker.patch('dea_vectoriser.vector_wos.xr.open_rasterio', return_value=sample_xarray)
+    monkeypatch.setattr('dea_vectoriser.vector_wos.xr.open_rasterio', lambda _: sample_xarray)
 
     stac_url = [obj for obj in samples_on_s3 if obj.endswith('json')][0]
     stac_document = load_document_from_s3(stac_url)

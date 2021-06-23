@@ -24,7 +24,7 @@ def validate_destination(ctx, param, value):
 
 
 def validate_sns_topic(ctx, param, value):
-    if not value.startswith('arn:aws:sns:'):
+    if value and not value.startswith('arn:aws:sns:'):
         raise click.BadOptionUsage('SNS Topic should start with arn:aws:sns')
     return value
 
