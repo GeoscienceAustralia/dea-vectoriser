@@ -1,12 +1,12 @@
+import boto3
+import click
 import json
 import logging
 import logging.config
 from typing import Optional
 
-import click
-
 from dea_vectoriser.utils import receive_messages, asset_url_from_stac, load_document_from_s3, publish_sns_message, \
-    output_name_from_url
+    output_name_from_url, stac_to_msg_and_attributes
 from dea_vectoriser.vector_wos import vectorise_wos
 from dea_vectoriser.vectorise import OUTPUT_FORMATS, save_vector_to_s3
 
@@ -122,6 +122,24 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
         stac_document = load_document_from_s3(s3_url)
 
         vector_convert(stac_document, destination, output_format, sns_topic)
+
+
+@cli.command()
+@click.option('--queue-url')
+@click.argument('s3_urls', nargs=-1)
+def s3_to_sqs(queue_url, s3_urls):
+    """Submit STAC documents to an SQS Queue"""
+    LOG.info(f'Submitting {len(s3_urls)} S3 STAC documents to {queue_url}')
+
+    client = boto3.client("sqs")
+    for s3_url in s3_urls:
+        LOG.info(f'Sending {s3_url}')
+        stac_document = load_document_from_s3(s3_url)
+
+        msg, msg_attribs = stac_to_msg_and_attributes(stac_document)
+        client.send_message(QueueUrl=queue_url,
+                            MessageBody=msg,
+                            MessageAttributes=msg_attribs)
 
 
 def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str] = None):
