@@ -1,6 +1,6 @@
 import json
 import re
-from collections import Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from urllib.request import urlretrieve
 
