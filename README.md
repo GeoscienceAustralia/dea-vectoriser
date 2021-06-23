@@ -1,3 +1,7 @@
+![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/GeoscienceAustralia/dea-vectoriser?label=latest%20version)
+[![](https://img.shields.io/codecov/c/github/GeoscienceAustralia/dea-vectoriser)](https://codecov.io/gh/GeoscienceAustralia/dea-vectoriser)
+[![](https://img.shields.io/docker/image-size/geoscienceaustralia/dea-vectoriser)](https://hub.docker.com/r/geoscienceaustralia/dea-vectoriser)
+[![](https://img.shields.io/docker/v/geoscienceaustralia/dea-vectoriser)](https://hub.docker.com/r/geoscienceaustralia/dea-vectoriser)
 
 # Digital Earth Australia Vectoriser
 
