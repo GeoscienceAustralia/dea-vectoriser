@@ -5,3 +5,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "dea_vectoriser/version.py"
+
+[tool.interrogate]
+exclude = ["dea_vectoriser/version.py", "dea_vectoriser/__init__.py"]
+ignore-semiprivate = true
+ignore-nested-functions = true
