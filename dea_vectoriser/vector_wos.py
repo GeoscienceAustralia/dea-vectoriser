@@ -1,22 +1,23 @@
-# read in WOs geotiff, output Vector
+"""
+Read in WOs GeoTIFF, Convert to Vectors
 
-# 1. create binary arrays for classed of interest: 1)water and 2)Not Analysed
-# 2. conduct binary erosion and dilation to remove single pixels/big gaps between datatypes
-#     - B) conduct fill on water to remove single pixel holes?
-#     - C) conduct 1 pixel buffer of no-data class? (unsure if should be latter in workflow)
-# 3. vectorise
-# 4. simplify shapes to remove complexity
-# 5. join both data types back together as one Geopandas Geodataframe (container for shapely objects with projection
-#    information)
-# 6. export an a single shapefile with attributes intact.
+1. create binary arrays for classed of interest: 1)water and 2)Not Analysed
+2. conduct binary erosion and dilation to remove single pixels/big gaps between datatypes
+    - B) conduct fill on water to remove single pixel holes?
+    - C) conduct 1 pixel buffer of no-data class? (unsure if should be latter in workflow)
+3. vectorise
+4. simplify shapes to remove complexity
+5. join both data types back together as one Geopandas Geodataframe (container for shapely objects with projection
+   information)
 
-import geopandas
+# Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
+"""
+
 import geopandas as gp
 import pandas as pd
 import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
-# Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
 from typing import Tuple
 
 from dea_vectoriser.vectorise import vectorise_data
@@ -31,11 +32,18 @@ def load_wos_data(url) -> xr.Dataset:
 
 
 def generate_raster_layers(wos_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray]:
-    # Defining the three 'classes':
-    # a) Water: where water is observed. Bit value 128
-    # b) unspoken 'dry'. this is not vectorised and is left as a transparent layer. bit values: 1 (no data) 2 (
-    # Contiguity)
-    # c) Not_analysed: every masking applied to the data except terrain shadow. bit values: composed of everything else,
+    """Convert in memory water observation raster to vector format.
+
+    Defining the three 'classes':
+    a) Water: where water is observed. Bit value 128
+    b) unspoken 'dry'. this is not vectorised and is left as a transparent layer.
+       bit values: 1 (no data) 2 (Contiguity)
+    c) Not_analysed: every masking applied to the data except terrain shadow.
+       bit values: composed of everything else,
+
+    Return
+        Dilated Water Vector, Dilated Not Analysed Vector
+    """
     # 1 create binary arrays for two classes of interest
     water_vals = (wos_dataset.wo == 128)  # water only has 128 water observations
     # here we used reversed logic to turn all pixels that should be 'not analysed' to a value of 3. is is easier to
@@ -59,7 +67,8 @@ def generate_raster_layers(wos_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.Da
     return dilated_water, dilated_not_analysed
 
 
-def vectorise_wos(url) -> geopandas.GeoDataFrame:
+def vectorise_wos(url) -> gp.GeoDataFrame:
+    """Load a Water Observation raster and convert to In Memory Vector"""
     raster = load_wos_data(url)
 
     dataset_crs = from_epsg(raster.crs[11:])

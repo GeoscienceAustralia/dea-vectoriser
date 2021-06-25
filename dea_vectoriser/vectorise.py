@@ -1,15 +1,16 @@
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
-import geopandas
+"""
+Tools for converting in memory raster data into geopandas vector data.
+"""
 import geopandas as gp
 import rasterio.features
 import xarray as xr
+from pathlib import Path
 from shapely.geometry import shape
+from tempfile import TemporaryDirectory
 
-# Mapping from Name: File extension
 from dea_vectoriser.utils import LOG, url_to_bucket_and_key, upload_directory
 
+# Maps from Format Name: File extension
 OUTPUT_FORMATS = {
     'Shapefile': '.shp',
     'GeoJSON': '.json',
@@ -53,7 +54,7 @@ def vectorise_data(data_array: xr.DataArray, transform, crs, label='Label'):
 
 
 def save_vector_to_s3(
-        vector_data: geopandas.GeoDataFrame, dest_prefix: str, filename: str, output_format='GPKG') -> str:
+        vector_data: gp.GeoDataFrame, dest_prefix: str, filename: str, output_format='GPKG') -> str:
     """Save a GeoPandas Vector to an AWS S3 Object
 
     :param vector_data: Vector data to serialise to S3

@@ -1,3 +1,6 @@
+"""
+Useful functions, mostly related to AWS and STAC
+"""
 import json
 import logging
 import os
@@ -39,6 +42,7 @@ def stac_to_msg_and_attributes(stac):
 
 
 def publish_sns_message(sns_arn, message):
+    """Send an SNS Message"""
     client = boto3.client("sns")
     client.publish(
         TopicArn=sns_arn,
@@ -145,8 +149,15 @@ def output_name_from_url(src_url,
 
 
 def load_document_from_s3(s3_url):
+    """Load a JSON document from an S3 URL"""
     bucket, key = url_to_bucket_and_key(s3_url)
     LOG.debug(f"Loading S3 object from Bucket: {bucket} Key: {key}")
     s3_client = boto3.client('s3')
     s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
     return json.loads(s3_response_object['Body'].read())
+
+
+def load_message(message):
+    """Load a JSON document from an SNS or SQS message body"""
+    message_body = json.loads(message.body)
+    return message_body

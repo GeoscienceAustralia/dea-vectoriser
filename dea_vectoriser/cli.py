@@ -1,12 +1,21 @@
+"""
+DEA Vectoriser converts raster datasets into vector datasets
+
+It supports:
+
+- reading from and writing to `s3://` URLs
+- Reading STAC documents from an SQS
+- Running directly on a list of S3 STAC Documents
+"""
 import boto3
 import click
-import json
 import logging
 import logging.config
 from typing import Optional
 
-from dea_vectoriser.utils import receive_messages, asset_url_from_stac, load_document_from_s3, publish_sns_message, \
-    output_name_from_url, stac_to_msg_and_attributes
+from dea_vectoriser.utils import (asset_url_from_stac, load_document_from_s3,
+                                  output_name_from_url, publish_sns_message,
+                                  receive_messages, stac_to_msg_and_attributes, load_message)
 from dea_vectoriser.vector_wos import vectorise_wos
 from dea_vectoriser.vectorise import OUTPUT_FORMATS, save_vector_to_s3
 
@@ -15,17 +24,17 @@ DEFAULT_DESTINATION = 's3://dea-public-data-dev/carsa/vector_wos/'
 LOG = logging.getLogger(__name__)
 
 
-def validate_destination(ctx, param, value):
+def _validate_destination(ctx, param, value):
     if not value.startswith('s3://'):
-        raise click.BadOptionUsage('destination must be an s3:// URL')
+        raise click.BadOptionUsage(option_name='--destination', message='destination must be an s3:// URL')
     if not value.endswith('/'):
         value += '/'
     return value
 
 
-def validate_sns_topic(ctx, param, value):
+def _validate_sns_topic(ctx, param, value):
     if value and not value.startswith('arn:aws:sns:'):
-        raise click.BadOptionUsage('SNS Topic should start with arn:aws:sns')
+        raise click.BadOptionUsage(option_name='--sns-topic', message='SNS Topic should start with arn:aws:sns')
     return value
 
 
@@ -33,7 +42,7 @@ destination_option = click.option('--destination',
                                   envvar='VECT_DESTINATION',
                                   default=DEFAULT_DESTINATION,
                                   help='Vector destination',
-                                  callback=validate_destination,
+                                  callback=_validate_destination,
                                   show_default=True)
 format_option = click.option('--output-format',
                              envvar='VECT_FORMAT',
@@ -42,7 +51,7 @@ format_option = click.option('--output-format',
                              type=click.Choice(OUTPUT_FORMATS))
 sns_topic_option = click.option('--sns-topic',
                                 envvar='VECT_SNS_TOPIC',
-                                callback=validate_sns_topic)
+                                callback=_validate_sns_topic)
 
 
 @click.group()
@@ -96,6 +105,10 @@ def cli():
 @sns_topic_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
 def process_sqs_messages(queue_url, destination, output_format, sns_topic):
+    """Read STAC documents from an SQS Queue continuously and convert to vector format.
+
+    The queue will be read from continuously until empty.
+    """
     LOG.info(f'Processing messages from SQS: {queue_url}')
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
@@ -143,6 +156,10 @@ def s3_to_sqs(queue_url, s3_urls):
 
 
 def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str] = None):
+    """Convert a raster dataset represented by a STAC document into a Vector stored on S3
+
+    Optionally sends an SNS notification of the new vector output.
+    """
     LOG.debug(f"Loaded STAC Document. Dataset Id: {stac_document.get('id')}")
 
     input_raster_url = asset_url_from_stac(stac_document, 'water')
@@ -160,12 +177,3 @@ def vector_convert(stac_document, destination, output_format, sns_topic: Optiona
     if sns_topic:
         LOG.info(f"Sending Vector URL notification to {sns_topic}")
         publish_sns_message(sns_topic, written_url)
-
-
-def load_message(message):
-    message_body = json.loads(message.body)
-    return message_body
-
-
-if __name__ == '__main__':
-    cli()
