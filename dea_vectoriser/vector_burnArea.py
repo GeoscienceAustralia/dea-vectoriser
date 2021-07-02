@@ -21,64 +21,65 @@ def load_burn_data(url) -> xr.Dataset:
     burn_dataset = geotiff_burn.to_dataset('band')
     return burn_dataset
 
-def generate_likely_burn_rasters(brun_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
-    """Convert in memory delta Normalized Burn Ratio raster to vector format.
-  as an interum, take dNBR classify into:
-  0: unburnt everything less than +0.1 (not vectorise this class)
-  1: very low probability of burn >= +0.1
-  2: low probability of burn >= +0.26
-  3: high probability of burn >= +0.66
-  4: Very High probability of burn >= +1.3
+def threshold_dNBR(brun_dataset: xr.Dataset, threshold: float =0.5, greater: bool =True) -> xr.DataArray:
+    """Apply a threshold to in memory continuous dataset and then conduct erosion and dilation.
   
-  Output:
-        Tuple[verylowprob, lowprob_burnt, highprob_burnt, veryhigh_prob]
+    input: xr.Dataset containing one dataarray which is to be thresholded
+            threshold to be applyed to xr.Dataset
+            direction of threhold to be conducted. default TRUE means comparison will be conducted 
+            as greater or equal to threhold value.
+    Output: a xr.DataArray containing 1,0 with 1 meeting the criteria of applyed threshold
     """
+
+    
     #create binary array for low prob burn
-    verylowprob_burnt =( brun_dataset[1] >= 0.1 )*1
+    if greater == True:
     
-    lowprob_burnt =( brun_dataset[1] >= 0.27) *1 
+        threshold_data = ( brun_dataset[1] >= threshold )*1
+        
+    else:
+        threshold_data = ( brun_dataset[1] <= threshold )*1
+            
+    # erode then dilate binary array by 2 itterations
+    erroded_data = xr.DataArray(ndimage.binary_erosion(threshold_data, iterations=2).astype(brun_dataset[1].dtype),
+                                 coords=brun_dataset[1].coords)
+    dilated_data = xr.DataArray(ndimage.binary_dilation(erroded_data, iterations=2).astype(brun_dataset[1].dtype),
+                                 coords=brun_dataset[1].coords)
 
-    highprob_burnt = (brun_dataset[1] >= 0.66) *1
-    
-    veryhighprob_burnt = (brun_dataset[1] >= 1.3) *1
-    
-    brun_dataset = brun_dataset[1]
-    
-    # erode then dilate all binary arrays by 2 itterations
-    erroded_VeryLowProb = xr.DataArray(ndimage.binary_erosion(verylowprob_burnt, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    dilated_VeryLowProb = xr.DataArray(ndimage.binary_dilation(erroded_VeryLowProb, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    
-    erroded_LowProb = xr.DataArray(ndimage.binary_erosion(lowprob_burnt, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    dilated_LowProb = xr.DataArray(ndimage.binary_dilation(erroded_LowProb, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    
-    erroded_highprob = xr.DataArray(ndimage.binary_erosion(highprob_burnt, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    dilated_highprob = xr.DataArray(ndimage.binary_dilation(erroded_highprob, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    
-    erroded_veryhighprob = xr.DataArray(ndimage.binary_erosion(veryhighprob_burnt, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
-    dilated_veryhighprob = xr.DataArray(ndimage.binary_dilation(erroded_veryhighprob, iterations=2).astype(brun_dataset.dtype),
-                                 coords=brun_dataset.coords)
+    return dilated_data
 
-    return [dilated_VeryLowProb, dilated_LowProb, dilated_highprob, dilated_veryhighprob]
-
+def generate_burn_rasters(brun_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
+    """Convert in memory delta Normalized Burn Ratio raster to vector format.
+      as an interum, take dNBR classify into:
+      0: unburnt everything less than +0.1 (not vectorise this class)
+      1: very low probability of burn >= +0.1
+      2: low probability of burn >= +0.26
+      3: high probability of burn >= +0.66
+      4: Very High probability of burn >= +1.3
+  
+      Output:
+        Tuple[verylowprob, lowprob, highprob, veryhighprob]
+    """
+    verylowprob = threshold_dNBR(brun_dataset, threshold=0.1)
+    lowprob  = threshold_dNBR(brun_dataset, threshold=0.15)
+    highprob = threshold_dNBR(brun_dataset, threshold=0.25)
+    veryhighprob = threshold_dNBR(brun_dataset, threshold=0.3)
+    
+        
+    return [verylowprob, lowprob, highprob, veryhighprob]
 
 def vectorise_burn(url) -> gp.GeoDataFrame:
-    """Load a delta Normalized Burn Ratio raster and convert to In Memory Vector"""
+    """Load a delta Normalized Burn Ratio raster, generate desiered levels of threholded dNBR
+    and convert them to In Memory Vectors"""
+    
     raster = load_burn_data(url)
-    #raster = xr.open_rasterio(url).to_dataset('band')
     
     dataset_crs = from_epsg(raster.crs[11:])
     dataset_transform = raster.transform
     # grab crs from input tiff
     
     #do the science to the input dataset
-    verylowprob_burnt, lowprob_burnt, highprob_burnt, veryhighprob_burnt = generate_likely_burn_rasters(raster)
+    verylowprob_burnt, lowprob_burnt, highprob_burnt, veryhighprob_burnt = generate_burn_rasters(raster)
 
     # vectorise the arrays
     verylow_burntGPD = vectorise_data(verylowprob_burnt, dataset_transform, dataset_crs, label='very_low_probability_burn')
@@ -115,11 +116,8 @@ def vectorise_burn(url) -> gp.GeoDataFrame:
 
     # add attribute labels back in
     simple_low_burntGPD['attribute'] = low_burntGPD['attribute']
-
     simple_high_burntGPD['attribute'] = high_burntGPD['attribute']
-    
     simple_verylow_burntGPD['attribute'] = verylow_burntGPD['attribute']
-
     simple_veryhigh_burntGPD['attribute'] = veryhigh_burntGPD['attribute']
 
     # Join layers together
