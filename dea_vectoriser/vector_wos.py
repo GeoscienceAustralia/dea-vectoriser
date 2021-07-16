@@ -74,11 +74,11 @@ def vectorise_wos(url) -> gp.GeoDataFrame:
     dataset_crs = from_epsg(raster.crs[11:])
     dataset_transform = raster.transform
     # grab crs from input tiff
-    
-    #define date of observation from file url path
-    date_clip = str(url)[-48:-40]
-    obs_date = f'{date_clip[0:4]}-{date_clip[4:6]}-{date_clip[6:8]}'
-    
+
+    # Extract date from the file path. Assumes that the last three path elements are year/month/day
+    year, month, day = url.split('/')[-4:-1]
+    obs_date = f'{year}-{month}-{day}'
+
     dilated_water, dilated_not_analysed = generate_raster_layers(raster)
 
     # vectorise the arrays
@@ -113,8 +113,7 @@ def vectorise_wos(url) -> gp.GeoDataFrame:
 
     all_classes = gp.GeoDataFrame(pd.concat([simple_waterGPD, simple_notAnalysedGPD], ignore_index=True),
                                   crs=simple_notAnalysedGPD.crs)
-    #add observation date as new attribute
-    
+    # add observation date as new attribute
     all_classes['Observed_date'] = obs_date
-    
+
     return all_classes
