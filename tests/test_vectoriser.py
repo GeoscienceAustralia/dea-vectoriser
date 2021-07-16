@@ -23,11 +23,14 @@ def test_create_vectors(sample_data, tmp_path):
 
 
 def test_convert_from_s3(samples_on_s3, sample_data, monkeypatch):
+    """
+    Test reading raster data from s3:// and writing vector data back to s3://
+    """
     sample_tiff = list(sample_data.glob('**/*.tif'))[0]
     sample_xarray = xr.open_rasterio(sample_tiff)
     monkeypatch.setattr('dea_vectoriser.vector_wos.xr.open_rasterio', lambda _: sample_xarray)
 
-    stac_url = [obj for obj in samples_on_s3 if obj.endswith('json')][0]
+    stac_url = list(sorted(obj for obj in samples_on_s3 if obj.endswith('json')))[0]
     stac_document = load_document_from_s3(stac_url)
     destination = 's3://second-bucket/'
     output_format = 'GPKG'
@@ -36,7 +39,8 @@ def test_convert_from_s3(samples_on_s3, sample_data, monkeypatch):
     s3_client = boto3.client('s3')
     response = s3_client.list_objects_v2(Bucket='second-bucket')
     assert len(response['Contents']) == 1
-    assert response['Contents'][0]['Key'] == '097/075/1998/08/17/ga_ls_wo_3_097075_1998-08-17_final_water.gpkg'
+    expected_output_key = '/'.join((stac_url.split('/')[-6:])).replace('.stac-item.json', '_water.gpkg')
+    assert response['Contents'][0]['Key'] == expected_output_key
 
 
 def test_save_vector_to_s3(s3):
