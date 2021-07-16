@@ -12,13 +12,14 @@ Read in WOs GeoTIFF, Convert to Vectors
 
 # Derived from https://github.com/GeoscienceAustralia/dea-notebooks/blob/KooieCate/vector_WOs_draft4.py
 """
+from pathlib import Path
 
 import geopandas as gp
 import pandas as pd
 import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
-from typing import Tuple
+from typing import Tuple, Union
 
 from dea_vectoriser.vectorise import vectorise_data
 
@@ -67,7 +68,7 @@ def generate_raster_layers(wos_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.Da
     return dilated_water, dilated_not_analysed
 
 
-def vectorise_wos(url) -> gp.GeoDataFrame:
+def vectorise_wos(url: Union[Path, str]) -> gp.GeoDataFrame:
     """Load a Water Observation raster and convert to In Memory Vector"""
     raster = load_wos_data(url)
     print(raster.dims)
@@ -76,7 +77,7 @@ def vectorise_wos(url) -> gp.GeoDataFrame:
     # grab crs from input tiff
 
     # Extract date from the file path. Assumes that the last three path elements are year/month/day
-    year, month, day = url.split('/')[-4:-1]
+    year, month, day = str(url).split('/')[-4:-1]
     obs_date = f'{year}-{month}-{day}'
 
     dilated_water, dilated_not_analysed = generate_raster_layers(raster)
