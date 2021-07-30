@@ -76,9 +76,11 @@ def vectorise_wos(url: Union[Path, str]) -> gp.GeoDataFrame:
     dataset_transform = raster.transform
     # grab crs from input tiff
 
-    # Extract date from the file path. Assumes that the last three path elements are year/month/day
-    year, month, day = str(url).split('/')[-4:-1]
-    obs_date = f'{year}-{month}-{day}'
+    # Extract date from the file path. Assumes that the last four path elements are year/month/day/YYYYMMDDTHHMMSS
+    year, month, day, time = str(url).split('/')[-5:-1]
+    time_hour =time[-6:-4]
+    time_mins =time[-4:-2]
+    obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'
 
     dilated_water, dilated_not_analysed = generate_raster_layers(raster)
 
