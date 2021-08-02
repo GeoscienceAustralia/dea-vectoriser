@@ -177,3 +177,7 @@ def vector_convert(stac_document, destination, output_format, sns_topic: Optiona
     if sns_topic:
         LOG.info(f"Sending Vector URL notification to {sns_topic}")
         publish_sns_message(sns_topic, written_url)
+
+
+if __name__ == '__main__':
+    cli()
