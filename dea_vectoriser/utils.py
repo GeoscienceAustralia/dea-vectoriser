@@ -160,4 +160,9 @@ def load_document_from_s3(s3_url):
 def load_message(message):
     """Load a JSON document from an SNS or SQS message body"""
     message_body = json.loads(message.body)
+    uuid = message_body.get("id", None)
+    if uuid is None:
+        # This is probably a message created from an SNS, so it's double
+        # JSON dumped
+        message_body = json.loads(message_body["Message"])
     return message_body
