@@ -1,10 +1,12 @@
-
 import geopandas as gp
 import pandas as pd
 import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
 from typing import Tuple
+
+from skimage import morphology
+from skimage.morphology import ball
 
 import geopandas as gp
 import rasterio.features
@@ -21,8 +23,9 @@ def load_burn_data(url) -> xr.Dataset:
     burn_dataset = geotiff_burn.to_dataset('band')
     return burn_dataset
 
-def threshold_dNBR(brun_dataset: xr.Dataset, threshold: float =0.5, greater: bool =True) -> xr.DataArray:
-    """Apply a threshold to in memory continuous dataset and then conduct erosion and dilation.
+def threshold_Delta_dataset(brun_dataset: xr.Dataset, threshold: float =0.5, greater: bool =True) -> xr.DataArray:
+    """Apply a threshold to in memory continuous dataset 
+    Fornow, don't and then conduct erosion and dilation.
   
     input: xr.Dataset containing one dataarray which is to be thresholded
             threshold to be applyed to xr.Dataset
@@ -39,96 +42,102 @@ def threshold_dNBR(brun_dataset: xr.Dataset, threshold: float =0.5, greater: boo
         
     else:
         threshold_data = ( brun_dataset[1] <= threshold )*1
-            
-    # erode then dilate binary array by 2 itterations
-    erroded_data = xr.DataArray(ndimage.binary_erosion(threshold_data, iterations=2).astype(brun_dataset[1].dtype),
+
+            # erode then dilate binary array by 2 itterations
+    dilated_data = xr.DataArray(morphology.binary_closing(threshold_data, morphology.disk(3)).astype(brun_dataset[1].dtype),
                                  coords=brun_dataset[1].coords)
-    dilated_data = xr.DataArray(ndimage.binary_dilation(erroded_data, iterations=2).astype(brun_dataset[1].dtype),
+    erroded_data = xr.DataArray(morphology.erosion(dilated_data, morphology.disk(3)).astype(brun_dataset[1].dtype),
+                                 coords=brun_dataset[1].coords)
+    dilated_data = xr.DataArray(ndimage.binary_dilation(erroded_data, morphology.disk(3)).astype(brun_dataset[1].dtype),
                                  coords=brun_dataset[1].coords)
 
+    
     return dilated_data
 
-def generate_burn_rasters(brun_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
-    """Convert in memory delta Normalized Burn Ratio raster to vector format.
-      as an interum, take dNBR classify into:
-      0: unburnt everything less than +0.1 (not vectorise this class)
-      1: very low probability of burn >= +0.1
-      2: low probability of burn >= +0.26
-      3: high probability of burn >= +0.66
-      4: Very High probability of burn >= +1.3
-  
-      Output:
-        Tuple[verylowprob, lowprob, highprob, veryhighprob]
+def generate_burn_confidence(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, NBR_dataset: xr.Dataset,) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+    """combine the three burn index models into a confidence burn map. 
+
     """
-    verylowprob = threshold_dNBR(brun_dataset, threshold=0.1)
-    lowprob  = threshold_dNBR(brun_dataset, threshold=0.15)
-    highprob = threshold_dNBR(brun_dataset, threshold=0.25)
-    veryhighprob = threshold_dNBR(brun_dataset, threshold=0.3)
+    BSI_burn = threshold_Delta_dataset(BSI_dataset, threshold=0.2, greater=True)
+    NDVI_burn = threshold_Delta_dataset(NDVI_dataset, threshold=0.1, greater=True)
+    NBR_burn = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True)
+    
+    combined_confidence = BSI_burn + NDVI_burn + NBR_burn
+    #combine boolean arrays so that where two overlap value become 2, three overlap value becomes 3.
+    
+    lowprob = (combined_confidence == 1) * 1
+    modprob = (combined_confidence == 2) * 1
+    highprob = (combined_confidence == 3) * 1
     
         
-    return [verylowprob, lowprob, highprob, veryhighprob]
+    return [lowprob, modprob, highprob]
 
-def vectorise_burn(url) -> gp.GeoDataFrame:
-    """Load a delta Normalized Burn Ratio raster, generate desiered levels of threholded dNBR
-    and convert them to In Memory Vectors"""
-    
-    raster = load_burn_data(url)
-    
-    dataset_crs = from_epsg(raster.crs[11:])
-    dataset_transform = raster.transform
-    # grab crs from input tiff
-    
-    #do the science to the input dataset
-    verylowprob_burnt, lowprob_burnt, highprob_burnt, veryhighprob_burnt = generate_burn_rasters(raster)
-
-    # vectorise the arrays
-    verylow_burntGPD = vectorise_data(verylowprob_burnt, dataset_transform, dataset_crs, label='very_low_probability_burn')
-    low_burntGPD = vectorise_data(lowprob_burnt, dataset_transform, dataset_crs, label='low_probability_burn')
-    high_burntGPD = vectorise_data(highprob_burnt, dataset_transform, dataset_crs, label='high_probability_burn')
-    veryhigh_burntGPD = vectorise_data(veryhighprob_burnt, dataset_transform, dataset_crs, label='very_high_probability_burn')
-
-    # Simplify
+def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.GeoDataFrame:
+# Simplify
 
     # change to 'epsg:3577' prior to simplifiying to insure consistent results
-    low_burntGPD = low_burntGPD.to_crs('epsg:3577')
-    high_burntGPD = high_burntGPD.to_crs('epsg:3577')
-    verylow_burntGPD = verylow_burntGPD.to_crs('epsg:3577')
-    veryhigh_burntGPD = veryhigh_burntGPD.to_crs('epsg:3577')
+    burn_dataframe = burn_dataframe.to_crs('epsg:3577')
 
-    # Run simplification with 15 tolerance
-    simplified_low_burnt = low_burntGPD.simplify(10)
-    simplified_high_burnt = high_burntGPD.simplify(10)
-    simplified_verylow_burnt = verylow_burntGPD.simplify(10)
-    simplified_veryhigh_burnt = veryhigh_burntGPD.simplify(10)
+    # Run simplification with 10 tolerance
+    simplified_burn_shapes = burn_dataframe.simplify(10)
 
     # Put simplified shapes in a dataframe
-    simple_low_burntGPD = gp.GeoDataFrame(geometry=simplified_low_burnt,
+    simple_burnt_dataframe = gp.GeoDataFrame(geometry=simplified_burn_shapes,
                                       crs=from_epsg('3577'))
-
-    simple_high_burntGPD = gp.GeoDataFrame(geometry=simplified_high_burnt,
-                                            crs=from_epsg('3577'))
-    
-    simple_verylow_burntGPD = gp.GeoDataFrame(geometry=simplified_verylow_burnt,
-                                      crs=from_epsg('3577'))
-
-    simple_veryhigh_burntGPD = gp.GeoDataFrame(geometry=simplified_veryhigh_burnt,
-                                            crs=from_epsg('3577'))
 
     # add attribute labels back in
-    simple_low_burntGPD['attribute'] = low_burntGPD['attribute']
-    simple_high_burntGPD['attribute'] = high_burntGPD['attribute']
-    simple_verylow_burntGPD['attribute'] = verylow_burntGPD['attribute']
-    simple_veryhigh_burntGPD['attribute'] = veryhigh_burntGPD['attribute']
+    simple_burnt_dataframe['attribute'] = burn_dataframe['attribute']
+    
+    return(simple_burnt_dataframe)
 
-    # Join layers together
+def vectorise_burn(BSI_url, NDVI_url, NBR_url) -> gp.GeoDataFrame, gp.GeoDataFrame:
+    """Load from S3 dBSI, dNBR and dNDVI rasters and produces two vector products.
+    
+    Burn_confidence finds agreement between the three burn models:
+        High confidence: where three models agree
+        Medium confidence: where two models agree
+        Low confidence: Where only one model finds burn
+        
+    dNBRGPD: Burnt area defined only by delat Normalised Burn Ratio. Burn area is greater than 0.1 
+    Rahman et al. 2018 founf this a good threshold to define burn area using sentinel 2. 
+    
+    """
+    
+    BSI_raster = load_burn_data(BSI_url)
+    NDVI_raster = load_burn_data(NDVI_url)
+    NBR_raster = load_burn_data(NBR_url)
+    
+    dataset_crs = from_epsg(BSI_raster.crs[11:])
+    dataset_transform = BSI_raster.transform
+    # grab crs from input tiff
+    
+#     # Extract date from the first file path. Assumes that the last four path elements are year/month/day/YYYYMMDDTHHMMSS
+    year, month, day, time = str(BSI_url).split('/')[-5:-1]
+    time_hour =time[-6:-4]
+    time_mins =time[-4:-2]
+    obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'
+#     obs_date = '2021-08-05T00:00:00:0Z'
+    
+    #do the science to the input dataset generate confidence 
+    low, medium, high = generate_burn_confidence(BSI_raster, NDVI_raster, NBR_raster)
+    
+    #apply threshold to dNBR 
+    delta_NBR = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True)
 
-    all_classes = gp.GeoDataFrame(pd.concat([simple_verylow_burntGPD, simple_low_burntGPD, simple_high_burntGPD, simple_veryhigh_burntGPD],
-                                            ignore_index=True), crs=simple_low_burntGPD.crs)
+    # vectorise the arrays
+    highGPD = vectorise_data(high, dataset_transform, dataset_crs, label='High_confidence_burn')
+    mediumGPD = vectorise_data(medium, dataset_transform, dataset_crs, label='Medium_confidence_burn')
+    lowGPD = vectorise_data(low, dataset_transform, dataset_crs, label='Low_confidence_burn')
+    
+    dNBRGPD = vectorise_data(delta_NBR, dataset_transform, dataset_crs, label='dNBR_burn_area')
+    
+    
+#     Join layers together
+    Burn_confidence = gp.GeoDataFrame(pd.concat([lowGPD, mediumGPD, highGPD],
+                                            ignore_index=True), crs=lowGPD.crs)
 
-    return all_classes
-
-
-
-
-
-
+    # add observation date as new attribute
+    Burn_confidence['Observed_date'] = obs_date
+    dNBRGPD['Observed_date'] = obs_date
+    
+    return(Burn_confidence, dNBRGPD)
