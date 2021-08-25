@@ -35,7 +35,7 @@ def threshold_Delta_dataset(brun_dataset: xr.Dataset, threshold: float =0.5, gre
     """
 
     
-    #create binary array for low prob burn
+    #create binary array for low agreement burn
     if greater == True:
     
         threshold_data = ( brun_dataset[1] >= threshold )*1
@@ -55,23 +55,23 @@ def threshold_Delta_dataset(brun_dataset: xr.Dataset, threshold: float =0.5, gre
     return dilated_data
 #test
 
-def generate_burn_confidence(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, NBR_dataset: xr.Dataset,) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
-    """combine the three burn index models into a confidence burn map. 
+def generate_burn_agreement(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, NBR_dataset: xr.Dataset,) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+    """combine the three burn index models into a agreement burn map. 
 
     """
     BSI_burn = threshold_Delta_dataset(BSI_dataset, threshold=0.2, greater=True)
     NDVI_burn = threshold_Delta_dataset(NDVI_dataset, threshold=0.1, greater=True)
     NBR_burn = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True)
     
-    combined_confidence = BSI_burn + NDVI_burn + NBR_burn
+    combined_agreement = BSI_burn + NDVI_burn + NBR_burn
     #combine boolean arrays so that where two overlap value become 2, three overlap value becomes 3.
     
-    lowprob = (combined_confidence == 1) * 1
-    modprob = (combined_confidence == 2) * 1
-    highprob = (combined_confidence == 3) * 1
+    lowagreement = (combined_agreement == 1) * 1
+    modagreement = (combined_agreement == 2) * 1
+    highagreement = (combined_agreement == 3) * 1
     
         
-    return [lowprob, modprob, highprob]
+    return [lowagreement, modagreement, highagreement]
 
 def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.GeoDataFrame:
 # Simplify
@@ -94,10 +94,10 @@ def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.Geo
 def vectorise_burn(BSI_url, NDVI_url, NBR_url) -> gp.GeoDataFrame, gp.GeoDataFrame:
     """Load from S3 dBSI, dNBR and dNDVI rasters and produces two vector products.
     
-    Burn_confidence finds agreement between the three burn models:
-        High confidence: where three models agree
-        Medium confidence: where two models agree
-        Low confidence: Where only one model finds burn
+    Burn_agreement finds agreement between the three burn models:
+        High agreement: where three models agree
+        Medium agreement: where two models agree
+        Low agreement: Where only one model finds burn
         
     dNBRGPD: Burnt area defined only by delat Normalised Burn Ratio. Burn area is greater than 0.1 
     Rahman et al. 2018 founf this a good threshold to define burn area using sentinel 2. 
@@ -119,26 +119,26 @@ def vectorise_burn(BSI_url, NDVI_url, NBR_url) -> gp.GeoDataFrame, gp.GeoDataFra
     obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'
 #     obs_date = '2021-08-05T00:00:00:0Z'
     
-    #do the science to the input dataset generate confidence 
-    low, medium, high = generate_burn_confidence(BSI_raster, NDVI_raster, NBR_raster)
+    #do the science to the input dataset generate agreement 
+    low, medium, high = generate_burn_agreement(BSI_raster, NDVI_raster, NBR_raster)
     
     #apply threshold to dNBR 
     delta_NBR = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True)
 
     # vectorise the arrays
-    highGPD = vectorise_data(high, dataset_transform, dataset_crs, label='High_confidence_burn')
-    mediumGPD = vectorise_data(medium, dataset_transform, dataset_crs, label='Medium_confidence_burn')
-    lowGPD = vectorise_data(low, dataset_transform, dataset_crs, label='Low_confidence_burn')
+    highGPD = vectorise_data(high, dataset_transform, dataset_crs, label='high_agreement_burn')
+    mediumGPD = vectorise_data(medium, dataset_transform, dataset_crs, label='medium_agreement_burn')
+    lowGPD = vectorise_data(low, dataset_transform, dataset_crs, label='low_agreement_burn')
     
     dNBRGPD = vectorise_data(delta_NBR, dataset_transform, dataset_crs, label='dNBR_burn_area')
     
     
 #     Join layers together
-    Burn_confidence = gp.GeoDataFrame(pd.concat([lowGPD, mediumGPD, highGPD],
+    Burn_agreement = gp.GeoDataFrame(pd.concat([lowGPD, mediumGPD, highGPD],
                                             ignore_index=True), crs=lowGPD.crs)
 
     # add observation date as new attribute
-    Burn_confidence['Observed_date'] = obs_date
+    Burn_agreement['Observed_date'] = obs_date
     dNBRGPD['Observed_date'] = obs_date
     
-    return(Burn_confidence, dNBRGPD)
+    return(Burn_agreement, dNBRGPD)
