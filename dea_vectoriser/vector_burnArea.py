@@ -53,6 +53,7 @@ def threshold_Delta_dataset(brun_dataset: xr.Dataset, threshold: float =0.5, gre
 
     
     return dilated_data
+#test
 
 def generate_burn_confidence(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, NBR_dataset: xr.Dataset,) -> Tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
     """combine the three burn index models into a confidence burn map. 
