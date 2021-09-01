@@ -64,7 +64,7 @@ def create_fmask_mask(fmask_dataset: xr.Dataset) -> xr.Dataset:
     """'''
     
     #make binary mask based on fmask
-    fmask_mask =  ( fmask_dataset[1] == 1 )*1
+    fmask_mask =  ( fmask_dataset != 1 )*1
     # erode then dilate binary array by 2 iterations
     dilated_data = xr.DataArray(morphology.binary_closing(fmask_mask[1], morphology.disk(3)).astype(fmask_dataset[1].dtype),
                                  coords=fmask_dataset[1].coords)
@@ -112,7 +112,7 @@ def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.Geo
     
     return(simple_burnt_dataframe)
 
-def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame, gp.GeoDataFrame:
+def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame:
     """Load from S3 dBSI, dNBR, dNDVI, and fmask rasters and
      produces two vector products. Add fmask mask to outputs.
     
@@ -146,7 +146,7 @@ def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame, gp
     low, medium, high = generate_burn_agreement(BSI_raster, NDVI_raster, NBR_raster)
     
     #apply threshold to dNBR 
-    delta_NBR = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True)
+    delta_NBR = threshold_Delta_dataset(NBR_raster, threshold=0.1, greater=True)
 
     #create mask to create highlight not-valid data
     fmask_mask = create_fmask_mask(fmask_raster)
