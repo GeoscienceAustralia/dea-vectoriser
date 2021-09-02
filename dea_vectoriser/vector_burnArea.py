@@ -94,6 +94,27 @@ def generate_burn_agreement(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, N
         
     return [lowagreement, modagreement, highagreement]
 
+def generate_burn_area(BSI_dataset: xr.Dataset, NDVI_dataset: xr.Dataset, NBR_dataset: xr.Dataset,) -> xr.DataArray:
+    """Take three simple models. Apply threshold to models and find where DNBR and at least one other model indicate burn area is likely.
+    
+    Input:  BSI_dataset: xr.Dataset, Differenced Bare Soil Index Dataset 
+            NDVI_dataset: xr.Dataset, Differenced Normalised Difference Vegetation Dataset
+            NBR_dataset: xr.Dataset, Differeced Normalised Burn Ration Dataset
+            
+    output: xr.Dataset, boolean values where burn is likely to have occured
+
+    """
+    BSI_burn = threshold_Delta_dataset(BSI_dataset, threshold=0.1, greater=True) * 1
+    NDVI_burn = threshold_Delta_dataset(NDVI_dataset, threshold=0.1, greater=True) * 1
+    NBR_burn = threshold_Delta_dataset(NBR_dataset, threshold=0.1, greater=True) * 1
+    
+    stacked_agreement = (NBR_burn * BSI_burn) + (NBR_burn * NDVI_burn)
+    
+    likely_burn = stacked_agreement >= 1
+    #I know it's kinda redundant to threshold again put I want the output boolean for vectorisation
+        
+    return(likely_burn)
+
 def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.GeoDataFrame:
 # Simplify
 
@@ -142,33 +163,27 @@ def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame:
     obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'
 #     obs_date = '2021-08-05T00:00:00:0Z'
     
-    #do the science to the input dataset generate agreement 
-    low, medium, high = generate_burn_agreement(BSI_raster, NDVI_raster, NBR_raster)
-    
-    #apply threshold to dNBR 
-    delta_NBR = threshold_Delta_dataset(NBR_raster, threshold=0.1, greater=True)
+    #do the science to the input dataset generate likely burn area 
+    burn_area_dataset = generate_burn_area(BSI_raster, NDVI_raster, NBR_raster)
+
+    print(burn_area_dataset)
 
     #create mask to create highlight not-valid data
     fmask_mask = create_fmask_mask(fmask_raster)
 
     # vectorise the arrays
-    highGPD = vectorise_data(high, dataset_transform, dataset_crs, label='high_agreement_burn')
-    mediumGPD = vectorise_data(medium, dataset_transform, dataset_crs, label='medium_agreement_burn')
-    lowGPD = vectorise_data(low, dataset_transform, dataset_crs, label='low_agreement_burn')
+    burn_area_GPD = vectorise_data(burn_area_dataset, dataset_transform, dataset_crs, label='Burn_area') #unsure if should change this lable?
     fmaskGPD = vectorise_data(fmask_mask, dataset_transform, dataset_crs, label= 'not_analysed')
-    
-    dNBRGPD = vectorise_data(delta_NBR, dataset_transform, dataset_crs, label='dNBR_burn_area')
-    
+
+    #Do simplification here if desiered
+#     burn_area_GPD = simplify_vectors(burn_area_GPD, tolerance=10)
+#     fmaskGPD = simplify_vectors(fmaskGPD, tolerance=10)
     
 #     Join layers together
-    Burn_agreement = gp.GeoDataFrame(pd.concat([lowGPD, mediumGPD, highGPD, fmaskGPD],
-                                            ignore_index=True), crs=lowGPD.crs)
-
-    dNBRGPD = gp.GeoDataFrame(pd.concat([dNBRGPD, fmaskGPD],
-                                            ignore_index=True), crs=dNBRGPD.crs)
+    Burn_agreement = gp.GeoDataFrame(pd.concat([burn_area_GPD, fmaskGPD],
+                                            ignore_index=True), crs=burn_area_GPD.crs)
 
     # add observation date as new attribute
     Burn_agreement['Observed_date'] = obs_date
-    dNBRGPD['Observed_date'] = obs_date
     
-    return(Burn_agreement, dNBRGPD)
+    return(Burn_agreement)
