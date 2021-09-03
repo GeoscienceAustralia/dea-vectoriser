@@ -166,13 +166,11 @@ def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame:
     #do the science to the input dataset generate likely burn area 
     burn_area_dataset = generate_burn_area(BSI_raster, NDVI_raster, NBR_raster)
 
-    print(burn_area_dataset)
-
     #create mask to create highlight not-valid data
     fmask_mask = create_fmask_mask(fmask_raster)
 
     # vectorise the arrays
-    burn_area_GPD = vectorise_data(burn_area_dataset, dataset_transform, dataset_crs, label='Burn_area') #unsure if should change this lable?
+    burn_area_GPD = vectorise_data(burn_area_dataset, dataset_transform, dataset_crs, label='potential_burn') #unsure if should change this lable?
     fmaskGPD = vectorise_data(fmask_mask, dataset_transform, dataset_crs, label= 'not_analysed')
 
     #Do simplification here if desiered
