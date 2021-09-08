@@ -20,9 +20,11 @@ import xarray as xr
 from fiona.crs import from_epsg
 from scipy import ndimage
 from typing import Tuple, Union
+import logging
+from dea_vectoriser.utils import (asset_url_from_stac)
 
 from dea_vectoriser.vectorise import vectorise_data
-
+LOG = logging.getLogger(__name__)
 
 def load_wos_data(url) -> xr.Dataset:
     """Open a GeoTIFF info an in memory DataArray """
@@ -68,16 +70,20 @@ def generate_raster_layers(wos_dataset: xr.Dataset) -> Tuple[xr.DataArray, xr.Da
     return dilated_water, dilated_not_analysed
 
 
-def vectorise_wos(url: Union[Path, str]) -> gp.GeoDataFrame:
+def vectorise_wos(raster_urls) -> gp.GeoDataFrame:
     """Load a Water Observation raster and convert to In Memory Vector"""
-    raster = load_wos_data(url)
+
+    input_raster_url = raster_urls['wofs_asset_url']
+    LOG.debug(f"Found GeoTIFF URL: {input_raster_url}")
+
+    raster = load_wos_data(input_raster_url)
     print(raster.dims)
     dataset_crs = from_epsg(raster.crs[11:])
     dataset_transform = raster.transform
     # grab crs from input tiff
 
     # Extract date from the file path. Assumes that the last four path elements are year/month/day/YYYYMMDDTHHMMSS
-    year, month, day, time = str(url).split('/')[-5:-1]
+    year, month, day, time = str(input_raster_url).split('/')[-5:-1]
     time_hour =time[-6:-4]
     time_mins =time[-4:-2]
     obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'

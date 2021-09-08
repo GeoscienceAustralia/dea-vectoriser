@@ -14,10 +14,12 @@ dependencies:
   - pip
   - xarray
   - toolz
+  - scikit-image
 
   # Only required for testing
   - pytest
   - pytest-cov
   - moto
+  - setuptools_scm
   - pip:
       - boto3_fixtures

@@ -133,7 +133,7 @@ def simplify_vectors(burn_dataframe: gp.GeoDataFrame, tolerance:int=10)-> gp.Geo
     
     return(simple_burnt_dataframe)
 
-def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame:
+def vectorise_burn(raster_urls) -> gp.GeoDataFrame:
     """Load from S3 dBSI, dNBR, dNDVI, and fmask rasters and
      produces two vector products. Add fmask mask to outputs.
     
@@ -147,17 +147,17 @@ def vectorise_burn(BSI_url, NDVI_url, NBR_url, fmask_url) -> gp.GeoDataFrame:
     
     """
     
-    BSI_raster = load_burn_data(BSI_url)
-    NDVI_raster = load_burn_data(NDVI_url)
-    NBR_raster = load_burn_data(NBR_url)
-    fmask_raster = load_burn_data(fmask_url)
+    BSI_raster = load_burn_data(raster_urls['delta_bsi_asset_url'])
+    NDVI_raster = load_burn_data(raster_urls['delta_ndvi_asset_url'])
+    NBR_raster = load_burn_data(raster_urls['delta_nbr_asset_url'])
+    fmask_raster = load_burn_data(raster_urls['fmask_asset_url'])
     
     dataset_crs = from_epsg(BSI_raster.crs[11:])
     dataset_transform = BSI_raster.transform
     # grab crs from input tiff
     
 #     # Extract date from the first file path. Assumes that the last four path elements are year/month/day/YYYYMMDDTHHMMSS
-    year, month, day, time = str(BSI_url).split('/')[-5:-1]
+    year, month, day, time = str(raster_urls['delta_bsi_asset_url']).split('/')[-5:-1]
     time_hour =time[-6:-4]
     time_mins =time[-4:-2]
     obs_date = f'{year}-{month}-{day}T{time_hour}:{time_mins}:00:0Z'

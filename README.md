@@ -18,15 +18,34 @@ A brief description of what this project does and who it's for
 
 ## Quick Start
 
+### Install dependencies
+This application depends on the following packages:
+1. Conda - https://docs.conda.io/en/latest/
+1. Mamba - https://mamba.readthedocs.io/en/latest/
 
+Linux:
+- TODO
+
+Windows:
+- TODO
+
+OSX:
+```
+  brew install anaconda
+  conda install -n base -c conda-forge mamba
+  conda init zsh #depends on user shell (bash, zsh, etc)
+```
+
+### Setup Dev environment
+Then, all platforms:
 
 ``` bash
+  conda activate
   mamba env create --file environment.yaml --name dea-vectoriser
   conda activate dea-vectoriser
   pip install -e .
 ```
 
-  
 ## Deployment
 
 

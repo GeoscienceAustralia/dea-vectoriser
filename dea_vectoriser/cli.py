@@ -17,12 +17,17 @@ from dea_vectoriser.utils import (asset_url_from_stac, load_document_from_s3,
                                   output_name_from_url, publish_sns_message,
                                   receive_messages, stac_to_msg_and_attributes, load_message)
 from dea_vectoriser.vector_wos import vectorise_wos
+from dea_vectoriser.vector_burnArea import vectorise_burn
 from dea_vectoriser.vectorise import OUTPUT_FORMATS, save_vector_to_s3
+import dea_vectoriser
 
 DEFAULT_DESTINATION = 's3://dea-public-data-dev/carsa/vector_wos/'
 
 LOG = logging.getLogger(__name__)
-
+ALGORITHMS = {
+    'wofs': dea_vectoriser.vector_wos.vectorise_wos,
+    'burns': dea_vectoriser.vector_burnArea.vectorise_burn,
+}
 
 def _validate_destination(ctx, param, value):
     if not value.startswith('s3://'):
@@ -37,6 +42,10 @@ def _validate_sns_topic(ctx, param, value):
         raise click.BadOptionUsage(option_name='--sns-topic', message='SNS Topic should start with arn:aws:sns')
     return value
 
+def _validate_algorithm(ctx, param, value):
+    if value not in ALGORITHMS.keys():
+        raise click.BadOptionUsage(option_name='--algorithm', message='Algorithm must be in '+str(ALGORITHMS.keys()))
+    return value
 
 destination_option = click.option('--destination',
                                   envvar='VECT_DESTINATION',
@@ -52,6 +61,12 @@ format_option = click.option('--output-format',
 sns_topic_option = click.option('--sns-topic',
                                 envvar='VECT_SNS_TOPIC',
                                 callback=_validate_sns_topic)
+algorithm_option = click.option('--algorithm',
+                                envvar='VECT_ALGORITHM',
+                                default='wofs',
+                                show_default=True,
+                                callback=_validate_algorithm
+                                )
 
 
 @click.group()
@@ -103,8 +118,9 @@ def cli():
 @destination_option
 @format_option
 @sns_topic_option
+@algorithm_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
-def process_sqs_messages(queue_url, destination, output_format, sns_topic):
+def process_sqs_messages(queue_url, destination, output_format, sns_topic, algorithm='wofs'):
     """Read STAC documents from an SQS Queue continuously and convert to vector format.
 
     The queue will be read from continuously until empty.
@@ -113,7 +129,7 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic):
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
 
-        vector_convert(stac_document, destination, output_format, sns_topic)
+        vector_convert(stac_document, destination, output_format, sns_topic, algorithm)
 
         message.delete()
 
@@ -122,8 +138,9 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic):
 @destination_option
 @format_option
 @sns_topic_option
+@algorithm_option
 @click.argument('s3_urls', nargs=-1)
-def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
+def run_from_s3_url(s3_urls, destination, output_format, sns_topic, algorithm='wofs'):
     """Convert WO dataset/s to Vector format and upload to S3
 
     S3_URLs should be one or more paths to STAC documents.
@@ -134,7 +151,7 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
 
         stac_document = load_document_from_s3(s3_url)
 
-        vector_convert(stac_document, destination, output_format, sns_topic)
+        vector_convert(stac_document, destination, output_format, sns_topic, algorithm)
 
 
 @cli.command()
@@ -155,21 +172,48 @@ def s3_to_sqs(queue_url, s3_urls):
                             MessageAttributes=msg_attribs)
 
 
-def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str] = None):
+def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str] = None, algorithm='wofs'):
     """Convert a raster dataset represented by a STAC document into a Vector stored on S3
 
     Optionally sends an SNS notification of the new vector output.
     """
     LOG.debug(f"Loaded STAC Document. Dataset Id: {stac_document.get('id')}")
 
-    input_raster_url = asset_url_from_stac(stac_document, 'water')
-    LOG.debug(f"Found Water Observations GeoTIFF URL: {input_raster_url}")
+    raster_asset_urls = {}
+    output_relative_path = ""
+    filename = ""
+    vector = None
 
-    # Load Data
-    vector = vectorise_wos(input_raster_url)
+    # Construct URLs for input assets and output locations for selected algorithm
+    if(algorithm == 'wofs'):
+        wofs_asset_url =  asset_url_from_stac(stac_document, 'water')
+        raster_asset_urls = {
+            'wofs_asset_url': wofs_asset_url
+        }
+
+        output_relative_path, filename = output_name_from_url(wofs_asset_url)
+        
+    elif(algorithm == 'burns'):
+        delta_nbr_asset_url = asset_url_from_stac(stac_document, 'delta_nbr')
+        delta_ndvi_asset_url = asset_url_from_stac(stac_document, 'delta_ndvi')
+        delta_bsi_asset_url = asset_url_from_stac(stac_document, 'delta_bsi')
+        fmask_asset_url = asset_url_from_stac(stac_document, 'fmask')
+        raster_asset_urls = {
+            'delta_nbr_asset_url': delta_nbr_asset_url,
+            'delta_ndvi_asset_url': delta_ndvi_asset_url,
+            'delta_bsi_asset_url' : delta_bsi_asset_url,
+            'fmask_asset_url' : fmask_asset_url
+        }
+
+        output_relative_path, filename = output_name_from_url(delta_nbr_asset_url)
+
+    else:
+        raise Exception("Unknown vectoriser algorithm, must be 'wofs' or 'burns'.")
+
+    # Compute the vectors
+    vector = ALGORITHMS[algorithm](raster_asset_urls)
     LOG.debug("Generated in RAM Vectors.")
 
-    output_relative_path, filename = output_name_from_url(input_raster_url)
     written_url = save_vector_to_s3(vector, destination + str(output_relative_path), filename,
                                     output_format=output_format)
     LOG.info(f"Wrote vector to {written_url}")
