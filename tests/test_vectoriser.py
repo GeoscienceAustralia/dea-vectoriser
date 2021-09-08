@@ -14,7 +14,11 @@ from dea_vectoriser.vectorise import save_vector_to_s3
 def test_create_vectors(sample_data, tmp_path):
     sample_tiff = list(sample_data.glob('**/*.tif'))[0]
 
-    gpd = vector_wos.vectorise_wos(sample_tiff)
+    raster_asset_urls = {
+        'wofs_asset_url': sample_tiff,
+    }
+
+    gpd = vector_wos.vectorise_wos(raster_asset_urls)
 
     filename = str(tmp_path / "testfilename.shp")
     gpd.to_file(filename)
@@ -27,6 +31,7 @@ def test_convert_from_s3(samples_on_s3, sample_data, monkeypatch):
     Test reading raster data from s3:// and writing vector data back to s3://
     """
     sample_tiff = list(sample_data.glob('**/*.tif'))[0]
+    
     sample_xarray = xr.open_rasterio(sample_tiff)
     monkeypatch.setattr('dea_vectoriser.vector_wos.xr.open_rasterio', lambda _: sample_xarray)
 

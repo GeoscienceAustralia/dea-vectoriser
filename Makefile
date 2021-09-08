@@ -11,6 +11,9 @@ build-image: #build-package
 	docker buildx build -t geoscienceaustralia/dea-vectoriser .
 	docker tag geoscienceaustralia/dea-vectoriser geoscienceaustralia/dea-vectoriser:$(VERSION)
 
+test:
+	pytest
+
 run-one-wofs:
 	dea-vectoriser run-from-s3-url --destination s3://dea-public-data-dev/carsa/vector_ba s3://dea-public-data-dev/derivative/ga_s2_wo_3/0-0-1/53/HQT/2021/07/20/20210720T015707/ga_s2_wo_3_53HQT_2021-07-20_nrt.stac-item.json --algorithm wofs
 
