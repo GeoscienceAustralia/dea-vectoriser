@@ -56,15 +56,15 @@ def threshold_Delta_dataset(burn_dataset: xr.Dataset, threshold: float =0.5, gre
 
 def create_fmask_mask(fmask_dataset: xr.Dataset) -> xr.Dataset:
     '''Create a mask from fmask and then dilate and erode data. 
-    Include values (2: cloud 3: shadow 4: snow 5: water) in fmask
-    mask that are therefore not equal to 1 (1: valid). 
+    Include values (2: cloud 3: shadow 4: snow) in fmask
+    mask that are therefore not equal to 1 or 5 (1: valid, 5: water). 
     
     Input: xr.Dataset containing one fmask data.
     Output: a xr.DataArray containing 1,0 with 1 meeting the criteria of applied threshold
     """'''
     
     #make binary mask based on fmask
-    fmask_mask =  ( fmask_dataset != 1 )*1
+    fmask_mask =  (( fmask == 5 ) | ( fmask == 1  ))*1
     # erode then dilate binary array by 2 iterations
     dilated_data = xr.DataArray(morphology.binary_closing(fmask_mask[1], morphology.disk(3)).astype(fmask_dataset[1].dtype),
                                  coords=fmask_dataset[1].coords)
