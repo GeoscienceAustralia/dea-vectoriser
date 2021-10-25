@@ -8,16 +8,15 @@ dependencies:
   - rasterio
   - geopandas
   - pandas
+  - pip
   - click
   - shapely
   - fiona
-  - pip
   - xarray
   - toolz
-
+    #  - pip:
+    #      - boto3_fixtures
   # Only required for testing
-  - pytest
-  - pytest-cov
-  - moto
-  - pip:
-      - boto3_fixtures
+  #  - pytest
+  #  - pytest-cov
+  #  - moto

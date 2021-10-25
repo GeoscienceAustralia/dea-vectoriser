@@ -3,9 +3,9 @@
 
 # Thankyou https://uwekorn.com/2021/03/01/deploying-conda-environments-in-docker-how-to-do-it-right.html
 
-FROM mambaorg/micromamba:0.15.3
-COPY environment.yaml /root/environment.yaml
-RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /root/environment.yaml && \
+FROM mambaorg/micromamba:0.17.0
+COPY environment.yaml /tmp/environment.yaml
+RUN --mount=type=cache,target=/opt/conda/pkgs pwd; cat /tmp/environment.yaml && micromamba install -n base -f /tmp/environment.yaml && \
 #    micromamba clean --all --yes && \
     rm -rf /opt/conda/include && \
     rm -rf /opt/conda/conda-meta  && \
@@ -25,4 +25,4 @@ RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /
 
 
 COPY dist /dist
-RUN pip install dist/*.whl
+RUN pip install --no-cache-dir /dist/*.whl
