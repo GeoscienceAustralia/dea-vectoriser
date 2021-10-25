@@ -3,7 +3,7 @@
 
 # Thankyou https://uwekorn.com/2021/03/01/deploying-conda-environments-in-docker-how-to-do-it-right.html
 
-FROM mambaorg/micromamba:0.13.1
+FROM mambaorg/micromamba:0.15.3
 COPY environment.yaml /root/environment.yaml
 RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /root/environment.yaml && \
 #    micromamba clean --all --yes && \
@@ -24,6 +24,5 @@ RUN --mount=type=cache,target=/opt/conda/pkgs micromamba install -y -n base -f /
 
 
 
-COPY dust-v0.5.4-x86_64-unknown-linux-gnu/dust /bin/dust
 COPY dist /dist
 RUN pip install dist/*.whl
