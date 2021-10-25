@@ -42,10 +42,6 @@ def _validate_sns_topic(ctx, param, value):
         raise click.BadOptionUsage(option_name='--sns-topic', message='SNS Topic should start with arn:aws:sns')
     return value
 
-def _validate_algorithm(ctx, param, value):
-    if value not in ALGORITHMS.keys():
-        raise click.BadOptionUsage(option_name='--algorithm', message='Algorithm must be in '+str(ALGORITHMS.keys()))
-    return value
 
 destination_option = click.option('--destination',
                                   envvar='VECT_DESTINATION',
@@ -65,7 +61,7 @@ algorithm_option = click.option('--algorithm',
                                 envvar='VECT_ALGORITHM',
                                 default='wofs',
                                 show_default=True,
-                                callback=_validate_algorithm
+                                type=click.Choice(ALGORITHMS.keys())
                                 )
 
 
@@ -185,6 +181,7 @@ def vector_convert(stac_document, destination, output_format, sns_topic: Optiona
     vector = None
 
     # Construct URLs for input assets and output locations for selected algorithm
+    # TODO: We can clean this hard-coded if/else by refactoring 'wofs' and 'burns' into Classes which implement a standard vectoriser interface.
     if(algorithm == 'wofs'):
         wofs_asset_url =  asset_url_from_stac(stac_document, 'water')
         raster_asset_urls = {

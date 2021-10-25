@@ -64,7 +64,7 @@ def create_fmask_mask(fmask_dataset: xr.Dataset) -> xr.Dataset:
     """'''
     
     #make binary mask based on fmask
-    fmask_mask =  (( fmask == 5 ) | ( fmask == 1  ))*1
+    fmask_mask =  (( fmask_dataset == 5 ) | ( fmask_dataset == 1  ))*1
     # erode then dilate binary array by 2 iterations
     dilated_data = xr.DataArray(morphology.binary_closing(fmask_mask[1], morphology.disk(3)).astype(fmask_dataset[1].dtype),
                                  coords=fmask_dataset[1].coords)
