@@ -19,7 +19,7 @@ dependencies:
   # Only required for testing
   - pytest
   - pytest-cov
-  # - moto
-  # - setuptools_scm
-  # - pip:
-  #     - boto3_fixtures
+  - moto
+  - setuptools_scm
+  - pip:
+       - boto3_fixtures
