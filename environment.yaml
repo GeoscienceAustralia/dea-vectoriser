@@ -17,8 +17,8 @@ dependencies:
   - scikit-image
 
   # Only required for testing
-  # - pytest
-  # - pytest-cov
+  - pytest
+  - pytest-cov
   # - moto
   # - setuptools_scm
   # - pip:
