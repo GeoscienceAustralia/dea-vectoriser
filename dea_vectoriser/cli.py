@@ -116,7 +116,7 @@ def cli():
 @sns_topic_option
 @algorithm_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
-def process_sqs_messages(queue_url, destination, output_format, sns_topic):
+def process_sqs_messages(queue_url, destination, output_format, algorithm, sns_topic):
     """Read STAC documents from an SQS Queue continuously and convert to vector format.
 
     The queue will be read from continuously until empty.
@@ -125,7 +125,7 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic):
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
 
-        vector_convert(stac_document, destination, output_format, sns_topic)
+        vector_convert(stac_document, destination, output_format, algorithm, sns_topic)
 
         message.delete()
 
@@ -136,7 +136,7 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic):
 @sns_topic_option
 @algorithm_option
 @click.argument('s3_urls', nargs=-1)
-def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
+def run_from_s3_url(s3_urls, destination, output_format, algorithm, sns_topic):
     """Convert WO dataset/s to Vector format and upload to S3
 
     S3_URLs should be one or more paths to STAC documents.
@@ -147,7 +147,7 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
 
         stac_document = load_document_from_s3(s3_url)
 
-        vector_convert(stac_document, destination, output_format, sns_topic)
+        vector_convert(stac_document, destination, output_format, algorithm, sns_topic)
 
 
 @cli.command()
@@ -168,7 +168,7 @@ def s3_to_sqs(queue_url, s3_urls):
                             MessageAttributes=msg_attribs)
 
 
-def vector_convert(stac_document, destination, output_format, sns_topic: Optional[str] = None, algorithm='wofs'):
+def vector_convert(stac_document, destination, output_format, algorithm, sns_topic: Optional[str] = None):
     """Convert a raster dataset represented by a STAC document into a Vector stored on S3
 
     Optionally sends an SNS notification of the new vector output.
