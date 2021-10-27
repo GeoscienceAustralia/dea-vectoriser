@@ -39,7 +39,8 @@ def test_convert_from_s3(samples_on_s3, sample_data, monkeypatch):
     stac_document = load_document_from_s3(stac_url)
     destination = 's3://second-bucket/'
     output_format = 'GPKG'
-    vector_convert(stac_document, destination, output_format)
+    algorithm = 'wofs'
+    vector_convert(stac_document, destination, output_format, algorithm)
 
     s3_client = boto3.client('s3')
     response = s3_client.list_objects_v2(Bucket='second-bucket')
