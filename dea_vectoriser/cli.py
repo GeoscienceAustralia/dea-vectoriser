@@ -116,7 +116,7 @@ def cli():
 @sns_topic_option
 @algorithm_option
 @click.argument('queue_url', envvar='VECT_SQS_URL')
-def process_sqs_messages(queue_url, destination, output_format, sns_topic, algorithm='wofs'):
+def process_sqs_messages(queue_url, destination, output_format, sns_topic):
     """Read STAC documents from an SQS Queue continuously and convert to vector format.
 
     The queue will be read from continuously until empty.
@@ -125,7 +125,7 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic, algor
     for message in receive_messages(queue_url):
         stac_document = load_message(message)
 
-        vector_convert(stac_document, destination, output_format, sns_topic, algorithm)
+        vector_convert(stac_document, destination, output_format, sns_topic)
 
         message.delete()
 
@@ -136,7 +136,7 @@ def process_sqs_messages(queue_url, destination, output_format, sns_topic, algor
 @sns_topic_option
 @algorithm_option
 @click.argument('s3_urls', nargs=-1)
-def run_from_s3_url(s3_urls, destination, output_format, sns_topic, algorithm='wofs'):
+def run_from_s3_url(s3_urls, destination, output_format, sns_topic):
     """Convert WO dataset/s to Vector format and upload to S3
 
     S3_URLs should be one or more paths to STAC documents.
@@ -147,7 +147,7 @@ def run_from_s3_url(s3_urls, destination, output_format, sns_topic, algorithm='w
 
         stac_document = load_document_from_s3(s3_url)
 
-        vector_convert(stac_document, destination, output_format, sns_topic, algorithm)
+        vector_convert(stac_document, destination, output_format, sns_topic)
 
 
 @cli.command()
