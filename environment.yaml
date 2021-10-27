@@ -14,9 +14,12 @@ dependencies:
   - fiona
   - xarray
   - toolz
-    #  - pip:
-    #      - boto3_fixtures
+  - scikit-image
+
   # Only required for testing
-  #  - pytest
-  #  - pytest-cov
-  #  - moto
+  - pytest
+  - pytest-cov
+  - moto
+  - setuptools_scm
+  - pip:
+       - boto3_fixtures

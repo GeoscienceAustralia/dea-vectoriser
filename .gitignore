@@ -8,3 +8,4 @@ build
 __pycache__
 dist
 dea_vectoriser/version.py
+.env

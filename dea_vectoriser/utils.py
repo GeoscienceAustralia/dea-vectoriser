@@ -107,11 +107,8 @@ def url_to_bucket_and_key(url) -> Tuple[str, str]:
     """Parse an s3:// URL into bucket + key """
     o = urlparse(url)
     return o.hostname, o.path.lstrip('/')
-
-
 class VectoriserException(Exception):
     """DEA Vectoriser has run into an error"""
-
 
 def output_name_from_url(src_url,
                          drop_extension=True,
